@@ -1,10 +1,7 @@
-import { env } from '$env/dynamic/public';
-
-/** Base URL API Elysia. Isi PUBLIC_API_URL di Vercel / .env */
-export const API_URL = env.PUBLIC_API_URL ?? 'http://localhost:8081';
+/** API se-host (SvelteKit server routes). */
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(path, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
     ...init,
