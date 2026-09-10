@@ -4,7 +4,7 @@ Website pencatatan keuangan keluarga (suami + istri). Mobile-first, 1 dompet **K
 
 ## Stack
 
-- **SvelteKit 5 + Svelte 5 runes** (`apps/web`) — halaman + API menyatu (server routes `/api/*`), deploy 1x ke Vercel
+- **SvelteKit 5 + Svelte 5 runes** (`apps/web`) — halaman + API menyatu (server routes `/api/*`)
 - **Tailwind CSS v4** — utility compiled, token di `apps/web/src/app.css`
 - **Drizzle ORM + postgres.js** (`packages/db`) — skema bersama
 - **PostgreSQL (Neon, region Singapore)** — database
