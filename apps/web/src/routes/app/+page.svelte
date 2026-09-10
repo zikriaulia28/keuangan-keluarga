@@ -153,6 +153,99 @@
 	}
 
 	onMount(muat);
+
+function statusTempo(t: Tagihan) {
+	const now = new Date();
+	now.setHours(0, 0, 0, 0);
+	const [y, m] = bulan.split('-').map(Number);
+	const maxHari = new Date(y, m, 0).getDate();
+	const dueDay = Math.min(t.hari, maxHari);
+	const due = new Date(y, m - 1, dueDay);
+	const sel = Math.round((due.getTime() - now.getTime()) / 86400000);
+	if (t.lunas) return { label: 'Lunas', kelas: 'bg-income-soft text-income-deep' };
+	if (sel < 0) return { label: `Telat ${-sel} hari`, kelas: 'bg-expense-soft text-expense-deep' };
+	if (sel === 0) return { label: 'Hari ini', kelas: 'bg-primary-bright/10 text-primary' };
+	if (sel <= 3) return { label: `${sel} hari lagi`, kelas: 'bg-primary-bright/10 text-primary' };
+	return null;
+}
+
+let pengingatAktif = $state(false);
+let pesanPengingat = $state('');
+let prosesPengingat = $state(false);
+
+async function cekStatusPengingat() {
+	if (typeof Notification === 'undefined') return;
+	const perm = Notification.permission;
+	if (perm === 'granted') {
+		try {
+			const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+			if (reg) {
+				const sub = await reg.pushManager.getSubscription();
+				if (sub) pengingatAktif = true;
+			}
+		} catch {
+			// abaikan
+		}
+	}
+}
+
+async function aktifkanPengingat() {
+	if (typeof Notification === 'undefined') {
+		pesanPengingat = 'Browser tidak mendukung notifikasi.';
+		return;
+	}
+	const perm = await Notification.requestPermission();
+	if (perm !== 'granted') {
+		pesanPengingat = 'Izin notifikasi ditolak.';
+		return;
+	}
+	prosesPengingat = true;
+	pesanPengingat = '';
+	try {
+		const reg = await navigator.serviceWorker.register('/sw.js');
+		await navigator.serviceWorker.ready;
+		const { publicKey } = await api<{ configured: boolean; publicKey: string | null }>('/api/push/vapid-public');
+		if (!publicKey) throw new Error('Push tidak dikonfigurasi di server.');
+		const key = new Uint8Array(
+			atob(publicKey.replace(/-/g, '+').replace(/_/g, '/'))
+				.split('')
+				.map((c) => c.charCodeAt(0))
+		);
+		const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+		await api('/api/push/subscribe', { method: 'POST', body: JSON.stringify(sub.toJSON()) });
+		pengingatAktif = true;
+		pesanPengingat = 'Pengingat aktif — Anda akan menerima notifikasi setiap pagi.';
+	} catch (e) {
+		pesanPengingat = e instanceof Error ? e.message : 'Gagal mengaktifkan.';
+	} finally {
+		prosesPengingat = false;
+	}
+}
+
+async function matikanPengingat() {
+	prosesPengingat = true;
+	pesanPengingat = '';
+	try {
+		const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+		if (reg) {
+			const sub = await reg.pushManager.getSubscription();
+			if (sub) {
+				await api('/api/push/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint: sub.endpoint }) });
+				await sub.unsubscribe();
+			}
+		}
+		pengingatAktif = false;
+		pesanPengingat = 'Pengingat dimatikan.';
+	} catch (e) {
+		pesanPengingat = e instanceof Error ? e.message : 'Gagal mematikan.';
+	} finally {
+		prosesPengingat = false;
+	}
+}
+
+onMount(() => {
+	void cekStatusPengingat();
+});
 </script>
 
 <div class="flex flex-col gap-4 md:gap-6">
@@ -406,10 +499,16 @@
 					{:else}
 						<div class="flex flex-col gap-2.5">
 							{#each tagihan as t (t.id)}
+								{@const st = statusTempo(t)}
 								<div class="flex items-center justify-between rounded-lg bg-surface-low p-3">
 									<div>
 										<div class="text-sm font-semibold">{t.nama}</div>
-										<div class="text-xs text-on-variant">Jatuh tempo: tgl {t.hari}</div>
+										<div class="flex items-center gap-1.5 text-xs text-on-variant">
+											<span>Jatuh tempo: tgl {t.hari}</span>
+											{#if st}
+												<span class="rounded-full px-2 py-0.5 text-[10px] font-bold {st.kelas}">{st.label}</span>
+											{/if}
+										</div>
 									</div>
 									<div class="flex flex-col items-end gap-1">
 										<span class="text-sm font-semibold">{rupiah(t.jumlah)}</span>
@@ -437,6 +536,37 @@
 					>
 						Kelola Semua Tagihan
 					</a>
+				</section>
+
+				<section class="rounded-xl bg-lowest p-4 shadow-[0_4px_20px_-2px_rgba(37,99,235,0.06)] md:p-6">
+					<div class="mb-3 flex items-center justify-between">
+						<h2 class="text-lg font-semibold">Pengingat Tagihan</h2>
+						<span class="material-symbols-outlined text-xl text-on-variant">notifications</span>
+					</div>
+					{#if pengingatAktif}
+						<p class="mb-2 text-sm text-on-variant">Aktif — notifikasi harian pukul 08.00 untuk tagihan yang jatuh tempo ≤ 3 hari atau sudah lewat.</p>
+						<button
+							type="button"
+							onclick={matikanPengingat}
+							disabled={prosesPengingat}
+							class="w-full rounded-lg bg-expense-soft px-4 py-2 text-sm font-medium text-expense-deep transition hover:bg-expense disabled:opacity-50"
+						>
+							{prosesPengingat ? 'Memproses…' : 'Matikan Pengingat'}
+						</button>
+					{:else}
+						<p class="mb-2 text-sm text-on-variant">Dapatkan notifikasi di perangkat ini saat tagihan mendekati jatuh tempo.</p>
+						<button
+							type="button"
+							onclick={aktifkanPengingat}
+							disabled={prosesPengingat}
+							class="w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary transition hover:opacity-95 disabled:opacity-50"
+						>
+							{prosesPengingat ? 'Mengaktifkan…' : 'Aktifkan Pengingat'}
+						</button>
+					{/if}
+					{#if pesanPengingat}
+						<p class="mt-2 text-xs {pengingatAktif ? 'text-income-deep' : 'text-error'}">{pesanPengingat}</p>
+					{/if}
 				</section>
 
 				<section class="rounded-xl bg-lowest p-4 shadow-[0_4px_20px_-2px_rgba(37,99,235,0.06)] md:p-6">

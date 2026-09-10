@@ -91,3 +91,12 @@ export const tagihanBayar = pgTable('tagihan_bayar', {
   transaksiId: integer('id_transaksi').references(() => transaksi.id, { onDelete: 'set null' }),
   dibayarOleh: integer('dibayar_oleh').notNull().references(() => users.id, { onDelete: 'restrict' }),
 });
+
+export const pushSubscriptions = pgTable('push_subscriptions', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  endpoint: text('endpoint').notNull().unique(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  createdAt: timestamp('created_at', { mode: 'string' }).notNull().defaultNow(),
+});

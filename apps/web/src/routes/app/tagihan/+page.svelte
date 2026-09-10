@@ -103,8 +103,14 @@
   function labelTempo(t: Tagihan) {
     const d = tglJatuhTempo(t);
     const s = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-    if (t.lunas || !dekat(t)) return `Jatuh tempo: ${s}`;
-    return `Jatuh tempo: ${s} (Segera)`;
+    if (t.lunas) return `Jatuh tempo: ${s} (Lunas)`;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const sel = Math.round((d.getTime() - now.getTime()) / 86400000);
+    if (sel < 0) return `Jatuh tempo: ${s} (Telat ${-sel} hari)`;
+    if (sel === 0) return `Jatuh tempo: ${s} (Hari ini)`;
+    if (sel <= 5) return `Jatuh tempo: ${s} (${sel} hari lagi)`;
+    return `Jatuh tempo: ${s}`;
   }
 
   function pesan(e: unknown, baku: string) {
