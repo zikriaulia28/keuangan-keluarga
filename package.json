@@ -1,0 +1,11 @@
+{
+  "name": "keuangan-keluarga",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "db:push": "bun --filter db db:push",
+    "dev:api": "bun --filter api dev",
+    "dev:web": "bun --filter web dev"
+  }
+}
