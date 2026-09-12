@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api, rupiah } from '$lib/api';
-
-  let { data } = $props();
+  import { onMount } from 'svelte';
+  import RupiahInput from '$lib/components/RupiahInput.svelte';
 
   type Tagihan = {
     id: number; nama: string; jumlah: number; hari: number;
@@ -30,7 +30,7 @@
   let tambahBuka = $state(false);
 
   let nama = $state('');
-  let jumlah = $state('');
+  let jumlah = $state<number | null>(null);
   let hari = $state('10');
   let idKategori = $state('');
   let catatan = $state('');
@@ -165,7 +165,7 @@
   async function tambah(e: SubmitEvent) {
     e.preventDefault();
     galatForm = '';
-    const j = Number(jumlah);
+    const j = jumlah ?? 0;
     const h = Number(hari);
     if (!nama.trim() || !(j > 0) || !(h >= 1 && h <= 31) || !idKategori) {
       galatForm = 'Isi nama, jumlah, hari 1–31, dan kategori.';
@@ -180,7 +180,7 @@
           ...(catatan.trim() ? { catatan: catatan.trim() } : {})
         })
       });
-      nama = ''; jumlah = ''; hari = '10'; idKategori = ''; catatan = '';
+      nama = ''; jumlah = null; hari = '10'; idKategori = ''; catatan = '';
       tambahBuka = false;
       await muat();
     } catch (e2) {
@@ -268,20 +268,17 @@
               class="w-full rounded-xl bg-surface-container p-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label for="tag-jumlah" class="mb-1 block text-sm font-medium text-on-surface">Nominal Perkiraan (Rp)</label>
-              <input
-                id="tag-jumlah"
-                type="number"
-                min="1"
-                bind:value={jumlah}
-                placeholder="500000"
-                required
-                class="w-full rounded-xl bg-surface-container p-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-            <div>
+          <div>
+            <label for="tag-jumlah" class="mb-1 block text-sm font-medium text-on-surface">Nominal Perkiraan (Rp)</label>
+            <RupiahInput
+              id="tag-jumlah"
+              bind:value={jumlah}
+              placeholder="500.000"
+              required
+              class="w-full rounded-xl bg-surface-container p-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div>
               <label for="tag-hari" class="mb-1 block text-sm font-medium text-on-surface">Tanggal Jatuh Tempo Bulanan</label>
               <input
                 id="tag-hari"
@@ -294,7 +291,6 @@
                 class="w-full rounded-xl bg-surface-container p-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-          </div>
           <div>
             <label for="tag-kat" class="mb-1 block text-sm font-medium text-on-surface">Kategori</label>
             <select

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api, rupiah } from '$lib/api';
   import { onMount } from 'svelte';
+  import RupiahInput from '$lib/components/RupiahInput.svelte';
 
   type Anggaran = { id: number; bulan: string; batas: number; kategori: string; id_kategori: number };
   type Kategori = { id: number; nama: string; tipe: string };
@@ -22,7 +23,7 @@
   let galatForm = $state('');
 
   let idKategori = $state('');
-  let batas = $state('');
+  let batas = $state<number | null>(null);
   let menyimpan = $state(false);
 
   function geser(b: string, d: number) {
@@ -105,7 +106,7 @@
   async function simpan(e: SubmitEvent) {
     e.preventDefault();
     galatForm = '';
-    const b = Number(batas);
+    const b = batas ?? 0;
     if (!idKategori || !(b > 0)) {
       galatForm = 'Pilih kategori dan isi batas lebih dari 0.';
       return;
@@ -117,7 +118,7 @@
         body: JSON.stringify({ id_kategori: Number(idKategori), bulan, batas: b })
       });
       idKategori = '';
-      batas = '';
+      batas = null;
       await muat();
     } catch (e2) {
       galatForm = pesan(e2, 'Gagal menyimpan.');
@@ -221,12 +222,10 @@
           </div>
           <div class="flex flex-col gap-1">
             <label for="agg-batas" class="text-sm font-medium text-on-variant">Batas Maksimal (Rp)</label>
-            <input
+            <RupiahInput
               id="agg-batas"
-              type="number"
-              min="1"
               bind:value={batas}
-              placeholder="500000"
+              placeholder="500.000"
               required
               class="rounded-lg bg-surface-low px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
             />
