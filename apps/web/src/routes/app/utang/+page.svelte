@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api, rupiah } from '$lib/api';
   import { onMount } from 'svelte';
+  import RupiahInput from '$lib/components/RupiahInput.svelte';
 
   type Utang = {
     id: number; arah: string; pihak: string; jumlah: number; terbayar: number;
@@ -20,14 +21,14 @@
 
   let arah = $state('utang');
   let pihak = $state('');
-  let jumlah = $state('');
+  let jumlah = $state<number | null>(null);
   let tanggal = $state(new Date().toISOString().slice(0, 10));
   let jatuhTempo = $state('');
   let catatan = $state('');
   let menyimpan = $state(false);
 
   let bayarId = $state<number | null>(null);
-  let bayarJumlah = $state('');
+  let bayarJumlah = $state<number | null>(null);
   let bayarTanggal = $state(new Date().toISOString().slice(0, 10));
 
   const totalUtang = $derived(semua.filter((u) => u.arah !== 'piutang' && !u.lunas).reduce((s, u) => s + u.sisa, 0));
@@ -99,7 +100,7 @@
   async function tambah(e: SubmitEvent) {
     e.preventDefault();
     galatForm = '';
-    if (!pihak.trim() || !(Number(jumlah) > 0) || !tanggal) {
+    if (!pihak.trim() || jumlah === null || !(jumlah > 0) || !tanggal) {
       galatForm = 'Isi pihak, jumlah, dan tanggal.';
       return;
     }
@@ -108,12 +109,12 @@
       await api('/api/utang', {
         method: 'POST',
         body: JSON.stringify({
-          arah, pihak: pihak.trim(), jumlah: Number(jumlah), tanggal,
+          arah, pihak: pihak.trim(), jumlah, tanggal,
           ...(jatuhTempo ? { jatuh_tempo: jatuhTempo } : {}),
           ...(catatan.trim() ? { catatan: catatan.trim() } : {})
         })
       });
-      pihak = ''; jumlah = ''; jatuhTempo = ''; catatan = '';
+      pihak = ''; jumlah = null; jatuhTempo = ''; catatan = '';
       tambahBuka = false;
       await muat();
     } catch (e2) {
@@ -125,17 +126,17 @@
 
   async function bayar(id: number) {
     galatBayar = '';
-    if (!(Number(bayarJumlah) > 0)) {
+    if (bayarJumlah === null || !(bayarJumlah > 0)) {
       galatBayar = 'Isi jumlah bayar lebih dari 0.';
       return;
     }
     try {
       await api(`/api/utang/${id}/bayar`, {
         method: 'POST',
-        body: JSON.stringify({ jumlah: Number(bayarJumlah), ...(bayarTanggal ? { tanggal: bayarTanggal } : {}) })
+        body: JSON.stringify({ jumlah: bayarJumlah, ...(bayarTanggal ? { tanggal: bayarTanggal } : {}) })
       });
       bayarId = null;
-      bayarJumlah = '';
+      bayarJumlah = null;
       await muat();
     } catch (e) {
       galatBayar = pesan(e, 'Gagal membayar.');
@@ -213,12 +214,10 @@
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label for="ut-jumlah" class="mb-1 block text-sm text-on-variant">Total Nominal (Rp)</label>
-            <input
+            <RupiahInput
               id="ut-jumlah"
-              type="number"
-              min="1"
               bind:value={jumlah}
-              placeholder="1000000"
+              placeholder="1.000.000"
               required
               class="w-full rounded-xl bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
             />
@@ -389,7 +388,7 @@
                   <button
                     onclick={() => {
                       bayarId = u.id;
-                      bayarJumlah = String(u.sisa);
+                      bayarJumlah = u.sisa;
                       galatBayar = '';
                     }}
                     title={isPiutang ? 'Terima Cicilan' : 'Bayar Cicilan'}
@@ -433,12 +432,10 @@
                     <label for="byr-jml-{u.id}" class="mb-1 block text-xs text-on-variant">
                       {isPiutang ? 'Jumlah Diterima (Rp)' : 'Jumlah Bayar (Rp)'}
                     </label>
-                    <input
+                    <RupiahInput
                       id="byr-jml-{u.id}"
-                      type="number"
-                      min="1"
                       bind:value={bayarJumlah}
-                      placeholder="500000"
+                      placeholder="500.000"
                       class="w-full rounded-lg bg-lowest px-3 py-2 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>

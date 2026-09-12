@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api, rupiah } from '$lib/api';
+	import RupiahInput from '$lib/components/RupiahInput.svelte';
 
 	interface Transaksi {
 		id: number;
@@ -353,13 +354,10 @@
 					</label>
 					<div class="relative flex items-center">
 						<span class="absolute left-4 font-medium text-on-variant">Rp</span>
-						<input
+						<RupiahInput
 							id="trx-jumlah"
-							type="number"
-							min="1"
-							step="1"
 							bind:value={jumlah}
-							placeholder="Contoh: 150000"
+							placeholder="Contoh: 150.000"
 							required
 							class="w-full rounded-xl bg-surface-low py-2.5 pr-4 pl-11 text-on-surface outline-none transition focus:ring-2 focus:ring-primary"
 						/>
