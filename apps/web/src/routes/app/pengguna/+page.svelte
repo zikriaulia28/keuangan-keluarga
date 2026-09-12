@@ -1,14 +1,15 @@
 <script lang="ts">
   import { api } from '$lib/api';
-  import { onMount } from 'svelte';
+
+  let { data } = $props();
 
   type User = { id: number; username: string; role: string; created_at: string };
 
-  let saya = $state('');
-  let sayaId = $state(0);
-  let role = $state('');
-  let daftar = $state<User[]>([]);
-  let memuat = $state(true);
+  let saya = $state(data.saya.username);
+  let sayaId = $state(data.saya.id);
+  let role = $state(data.saya.role);
+  let daftar = $state<User[]>(data.daftar);
+  let memuat = $state(false);
   let galat = $state('');
   let galatTambah = $state('');
   let galatSandi = $state('');
@@ -47,25 +48,14 @@
     return r === 'admin' ? 'Admin' : 'User';
   }
 
-  async function muat() {
-    memuat = true;
+  async function muatUlang() {
     galat = '';
     try {
-      const me = await api<{ id: number; username: string; role: string }>('/api/me');
-      saya = me.username;
-      sayaId = me.id;
-      role = me.role;
-      if (role === 'admin') {
-        daftar = await api<User[]>('/api/users');
-      }
+      daftar = await api<User[]>('/api/users');
     } catch (e) {
       galat = pesan(e, 'Gagal memuat.');
-    } finally {
-      memuat = false;
     }
   }
-
-  onMount(muat);
 
   async function tambah(e: SubmitEvent) {
     e.preventDefault();
@@ -81,7 +71,7 @@
         body: JSON.stringify({ username: username.trim(), password, role: peran })
       });
       username = ''; password = ''; peran = 'user';
-      daftar = await api<User[]>('/api/users');
+      await muatUlang();
     } catch (e2) {
       galatTambah = pesan(e2, 'Gagal menambah.');
     } finally {
