@@ -17,14 +17,13 @@
   ];
   const NAMA_BULAN_PENDEK = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
-  const sekarang = new Date();
-  let bulan = $state(`${sekarang.getFullYear()}-${String(sekarang.getMonth() + 1).padStart(2, '0')}`);
-  let daftar = $state<Tagihan[]>([]);
-  let kategoris = $state<Kategori[]>([]);
-  let dompets = $state<Dompet[]>([]);
-  let via: Record<number, string> = $state({});
-  let role = $state('');
-  let memuat = $state(true);
+  let bulan = $state(data.bulan);
+  let daftar = $state<Tagihan[]>(data.daftar);
+  let kategoris = $state<Kategori[]>(data.kategoris);
+  let dompets = $state<Dompet[]>(data.dompets);
+  let via: Record<number, string> = $state(data.via);
+  let role = $state(data.role);
+  let memuat = $state(false);
   let galat = $state('');
   let galatForm = $state('');
   let galatBayar = $state('');
@@ -37,8 +36,7 @@
   let catatan = $state('');
   let menyimpan = $state(false);
   let membayarId = $state<number | null>(null);
-
-  let dompetPilih: Record<number, string> = $state({});
+  let dompetPilih: Record<number, string> = $state(data.dompetPilih);
 
   const total = $derived(daftar.reduce((s, t) => s + t.jumlah, 0));
   const lunasList = $derived(daftar.filter((t) => t.lunas));
@@ -129,13 +127,11 @@
     galat = '';
     galatBayar = '';
     try {
-      const [me, list, kat, dom] = await Promise.all([
-        api<{ role: string }>('/api/me'),
+      const [list, kat, dom] = await Promise.all([
         api<Tagihan[]>(`/api/tagihan?bulan=${bulan}`),
         api<Kategori[]>('/api/kategori?tipe=keluar').catch(() => [] as Kategori[]),
         api<Dompet[]>('/api/dompet').catch(() => [] as Dompet[])
       ]);
-      role = me.role;
       daftar = list;
       kategoris = kat;
       dompets = dom;
@@ -165,8 +161,6 @@
       memuat = false;
     }
   }
-
-  onMount(muat);
 
   async function tambah(e: SubmitEvent) {
     e.preventDefault();

@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { api, rupiah } from '$lib/api';
 	import RupiahInput from '$lib/components/RupiahInput.svelte';
 
+	let { data } = $props();
 	interface Transaksi {
 		id: number;
 		tanggal: string;
@@ -44,7 +44,7 @@
 	// Form tambah
 	let tanggal = $state(hariIni());
 	let tipe = $state<'masuk' | 'keluar'>('keluar');
-	let id_dompet = $state<number | null>(null);
+	let id_dompet = $state<number | null>(data.dompet[0]?.id_dompet ?? null);
 	let id_kategori = $state<number | null>(null);
 	let jumlah = $state<number | null>(null);
 	let catatan = $state('');
@@ -56,13 +56,13 @@
 	let sampai = $state('');
 	let filterTipe = $state('');
 
-	let daftar = $state<Transaksi[]>([]);
-	let dompet = $state<Dompet[]>([]);
-	let kategoriMasuk = $state<Kategori[]>([]);
-	let kategoriKeluar = $state<Kategori[]>([]);
-	let statMasuk = $state(0);
-	let statKeluar = $state(0);
-	let memuat = $state(true);
+	let daftar = $state<Transaksi[]>(data.daftar);
+	let dompet = $state<Dompet[]>(data.dompet);
+	let kategoriMasuk = $state<Kategori[]>(data.kategoriMasuk);
+	let kategoriKeluar = $state<Kategori[]>(data.kategoriKeluar);
+	let statMasuk = $state(data.statMasuk);
+	let statKeluar = $state(data.statKeluar);
+	let memuat = $state(false);
 	let galat = $state('');
 	let galatHapus = $state('');
 	let hapusId = $state<number | null>(null);
@@ -90,28 +90,6 @@
 			statKeluar = r.keluar;
 		} catch {
 			// statistik boleh kosong bila ringkasan gagal dimuat
-		}
-	}
-
-	async function muatAwal() {
-		memuat = true;
-		galat = '';
-		try {
-			const [d, km, kk] = await Promise.all([
-				api<Dompet[]>('/api/dompet'),
-				api<Kategori[]>('/api/kategori?tipe=masuk'),
-				api<Kategori[]>('/api/kategori?tipe=keluar'),
-				muatStat()
-			]);
-			dompet = d;
-			kategoriMasuk = km;
-			kategoriKeluar = kk;
-			if (id_dompet === null && d.length > 0) id_dompet = d[0].id_dompet;
-			await muatDaftar();
-		} catch (e) {
-			galat = pesan(e, 'Gagal memuat data.');
-		} finally {
-			memuat = false;
 		}
 	}
 
@@ -192,8 +170,6 @@
 			menghapus = false;
 		}
 	}
-
-	onMount(muatAwal);
 </script>
 
 <div class="flex flex-col gap-4 md:gap-6">

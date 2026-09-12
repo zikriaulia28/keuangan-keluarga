@@ -2,6 +2,8 @@
 	import { onMount } from 'svelte';
 	import { api, rupiah } from '$lib/api';
 
+	let { data } = $props();
+
 	interface PerKategori {
 		kategori: string;
 		total: number;
@@ -17,15 +19,17 @@
 		nama: string;
 		saldo: number;
 	}
-	interface Ringkasan {
-		bulan: string;
-		masuk: number;
-		keluar: number;
-		sisa: number;
-		perKategori: PerKategori[];
-		anggaran: AnggaranPakai[];
-		dompet: DompetSaldo[];
-	}
+interface Ringkasan {
+	bulan: string;
+	masuk: number;
+	keluar: number;
+	sisa: number;
+	prevMasuk: number;
+	prevKeluar: number;
+	perKategori: PerKategori[];
+	anggaran: AnggaranPakai[];
+	dompet: DompetSaldo[];
+}
 	interface Tagihan {
 		id: number;
 		nama: string;
@@ -46,16 +50,6 @@
 		tanggal: string;
 		jatuhTempo: string | null;
 		catatan: string | null;
-	}
-	interface Me {
-		id: number;
-		username: string;
-		role: string;
-	}
-
-	function bulanIni() {
-		const d = new Date();
-		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 	}
 
 	function geserBulan(b: string, delta: number) {
@@ -91,17 +85,16 @@
 		return `Terlambat ${-selisih} bulan`;
 	}
 
-	let bulan = $state(bulanIni());
-	let ringkasan = $state<Ringkasan | null>(null);
-	let bulanLalu = $state<Ringkasan | null>(null);
-	let tagihan = $state<Tagihan[]>([]);
-	let utang = $state<Utang[]>([]);
-	let namaPengguna = $state('');
-	let memuat = $state(true);
+	let bulan = $state(data.bulan);
+	let ringkasan = $state<Ringkasan | null>(data.ringkasan);
+	let tagihan = $state<Tagihan[]>(data.tagihan);
+	let utang = $state<Utang[]>(data.utang);
+	let namaPengguna = $state(data.namaPengguna);
+	let memuat = $state(false);
 	let galat = $state('');
 
-	const trenMasuk = $derived(mom(ringkasan?.masuk ?? 0, bulanLalu ? bulanLalu.masuk : null));
-	const trenKeluar = $derived(mom(ringkasan?.keluar ?? 0, bulanLalu ? bulanLalu.keluar : null));
+	const trenMasuk = $derived(mom(ringkasan?.masuk ?? 0, ringkasan?.prevMasuk ?? null));
+	const trenKeluar = $derived(mom(ringkasan?.keluar ?? 0, ringkasan?.prevKeluar ?? null));
 	const persenSisa = $derived(
 		ringkasan && ringkasan.masuk > 0 ? Math.round((ringkasan.sisa / ringkasan.masuk) * 100) : null
 	);
@@ -126,19 +119,6 @@
 			ringkasan = r;
 			tagihan = t;
 			utang = u;
-			try {
-				bulanLalu = await api<Ringkasan>(
-					`/api/ringkasan?bulan=${encodeURIComponent(geserBulan(bulan, -1))}`
-				);
-			} catch {
-				bulanLalu = null;
-			}
-			try {
-				const me = await api<Me>('/api/me');
-				namaPengguna = me.username;
-			} catch {
-				namaPengguna = '';
-			}
 		} catch (e) {
 			galat = e instanceof Error ? e.message : 'Gagal memuat dashboard.';
 		} finally {
@@ -152,7 +132,6 @@
 		void muat();
 	}
 
-	onMount(muat);
 
 function statusTempo(t: Tagihan) {
 	const now = new Date();
