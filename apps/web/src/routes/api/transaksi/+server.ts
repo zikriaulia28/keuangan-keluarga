@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
 import { db, dompet, kategori, transaksi, users } from 'db';
 import { currentUser } from '$lib/server/auth';
 import { saldoDompet } from '$lib/server/saldo';
@@ -19,6 +19,16 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
   if (to && TGL.test(to)) conds.push(lte(transaksi.tanggal, to));
   if (idDompet) conds.push(eq(transaksi.dompetId, Number(idDompet)));
   if (tipe === 'masuk' || tipe === 'keluar') conds.push(eq(transaksi.tipe, tipe));
+  const qRaw = url.searchParams.get('q')?.trim() ?? '';
+  if (qRaw) {
+    const escaped = qRaw.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+    const like = `%${escaped}%`;
+    const qConds = [ilike(transaksi.catatan, like), ilike(kategori.nama, like)];
+    const digits = qRaw.replace(/\D/g, '');
+    if (digits) qConds.push(sql`CAST(${transaksi.jumlah} AS TEXT) LIKE ${`%${digits}%`}`);
+    const orCond = or(...qConds);
+    if (orCond) conds.push(orCond);
+  }
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit') ?? 100) || 100, 1), 500);
   const offset = Math.max(Number(url.searchParams.get('offset') ?? 0) || 0, 0);
   return json(

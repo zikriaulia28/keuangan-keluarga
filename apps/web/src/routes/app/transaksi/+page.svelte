@@ -55,6 +55,7 @@
 	let dari = $state('');
 	let sampai = $state('');
 	let filterTipe = $state('');
+	let cari = $state('');
 
 	let daftar = $state<Transaksi[]>(data.daftar);
 	let dompet = $state<Dompet[]>(data.dompet);
@@ -98,6 +99,7 @@
 		if (dari) q.set('from', dari);
 		if (sampai) q.set('to', sampai);
 		if (filterTipe) q.set('tipe', filterTipe);
+		if (cari.trim()) q.set('q', cari.trim());
 		q.set('limit', '100');
 		daftar = await api<Transaksi[]>(`/api/transaksi?${q.toString()}`);
 	}
@@ -450,7 +452,23 @@
 								</span>
 							</div>
 							<div class="min-w-0">
-								<div class="flex flex-wrap items-center gap-2">
+			<div class="flex flex-wrap items-center gap-2">
+				<label class="flex items-center gap-1.5 rounded-xl bg-surface-low px-3 py-1.5 text-xs">
+					<span class="material-symbols-outlined text-base text-on-variant">search</span>
+					<input
+						type="search"
+						bind:value={cari}
+						placeholder="Cari catatan, kategori, nominal…"
+						aria-label="Cari transaksi"
+						onkeydown={(e) => {
+							if (e.key === 'Enter') {
+								e.preventDefault();
+								terapkanFilter();
+							}
+						}}
+						class="w-44 bg-transparent text-sm text-on-surface outline-none placeholder:text-on-variant"
+					/>
+				</label>
 									<strong class="text-base">{t.kategori}</strong>
 									<span
 										class="rounded-full px-2 py-0.5 text-xs font-medium {t.tipe === 'masuk'
