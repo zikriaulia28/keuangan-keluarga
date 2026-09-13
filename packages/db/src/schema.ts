@@ -1,4 +1,4 @@
-import { check, integer, pgTable, serial, text, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
+import { check, index, integer, pgTable, serial, text, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const users = pgTable('users', {
@@ -44,6 +44,10 @@ export const transaksi = pgTable('transaksi', {
 }, (t) => [
   check('transaksi_tipe_check', sql`${t.tipe} IN ('masuk','keluar')`),
   check('transaksi_jumlah_check', sql`${t.jumlah} > 0`),
+  // Sort + filter utama daftar: ORDER BY tanggal DESC, id DESC + rentang tanggal.
+  index('transaksi_tanggal_id_idx').on(t.tanggal, t.id),
+  index('transaksi_dompet_idx').on(t.dompetId),
+  index('transaksi_kategori_idx').on(t.kategoriId),
 ]);
 
 export const anggaran = pgTable('anggaran', {

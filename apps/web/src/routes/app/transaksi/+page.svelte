@@ -66,6 +66,7 @@
 	let statMasuk = $state(data.statMasuk);
 	let statKeluar = $state(data.statKeluar);
 	let memuat = $state(false);
+	let adaLagi = $state(data.daftar.length === 100);
 	let galat = $state('');
 	let galatHapus = $state('');
 	let hapusId = $state<number | null>(null);
@@ -110,20 +111,26 @@
 		}
 	}
 
-	async function muatDaftar() {
+	async function muatDaftar(tambah = false) {
 		const q = new URLSearchParams();
 		if (dari) q.set('from', dari);
 		if (sampai) q.set('to', sampai);
 		if (filterTipe) q.set('tipe', filterTipe);
 		if (cari.trim()) q.set('q', cari.trim());
 		q.set('limit', '100');
-		daftar = await api<Transaksi[]>(`/api/transaksi?${q.toString()}`);
+		if (tambah && daftar.length > 0) {
+			const akhir = daftar[daftar.length - 1];
+			q.set('cursor', `${akhir.tanggal.slice(0, 10)}:${akhir.id}`);
+		}
+		const halaman = await api<Transaksi[]>(`/api/transaksi?${q.toString()}`);
+		daftar = tambah ? [...daftar, ...halaman] : halaman;
+		adaLagi = halaman.length === 100;
 	}
 
-	async function terapkanFilter() {
+	async function terapkanFilter(tambah = false) {
 		galat = '';
 		try {
-			await muatDaftar();
+			await muatDaftar(tambah);
 		} catch (e) {
 			galat = pesan(e, 'Gagal memuat transaksi.');
 		}
@@ -463,7 +470,7 @@
 				</select>
 			<button
 				type="button"
-				onclick={terapkanFilter}
+				onclick={() => terapkanFilter()}
 				class="rounded-xl bg-primary px-4 py-1.5 text-sm font-medium text-on-primary transition hover:opacity-95"
 			>
 				Terapkan
@@ -592,6 +599,15 @@
 					</div>
 				{/each}
 			</div>
+			{#if adaLagi}
+				<button
+					type="button"
+					onclick={() => terapkanFilter(true)}
+					class="mt-3 w-full rounded-xl bg-surface-container px-4 py-2.5 text-sm font-medium text-on-surface transition hover:bg-surface-high sm:w-auto"
+				>
+					Muat lebih banyak
+				</button>
+			{/if}
 		{/if}
 	</section>
 </div>
