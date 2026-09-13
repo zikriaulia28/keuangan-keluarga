@@ -216,15 +216,15 @@
 </script>
 
 <div class="flex flex-col gap-4 md:gap-6">
-	<div class="mb-1 flex items-center justify-between">
-		<div>
-			<h1 class="text-2xl font-bold text-on-surface">Pencatatan & Riwayat Kas</h1>
+<div class="mb-1 flex items-center justify-between gap-3">
+		<div class="min-w-0">
+			<h1 class="text-xl font-bold text-on-surface sm:text-2xl">Pencatatan & Riwayat Kas</h1>
 			<p class="mt-0.5 text-sm text-on-variant">Kelola arus kas keluar masuk keluarga dengan transparan</p>
 		</div>
 		<button
 			type="button"
 			onclick={catatBaru}
-			class="flex items-center gap-1 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-on-primary shadow-md transition hover:opacity-95 active:scale-95"
+			class="flex shrink-0 items-center gap-1 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-on-primary shadow-md transition hover:opacity-95 active:scale-95"
 		>
 			<span class="material-symbols-outlined text-xl">add_circle</span>
 			<span class="hidden sm:inline">Catat Baru</span>
@@ -461,14 +461,32 @@
 					<option value="masuk">Masuk Saja</option>
 					<option value="keluar">Keluar Saja</option>
 				</select>
-				<button
-					type="button"
-					onclick={terapkanFilter}
-					class="rounded-xl bg-primary px-4 py-1.5 text-sm font-medium text-on-primary transition hover:opacity-95"
-				>
-					Terapkan
-				</button>
-			</div>
+			<button
+				type="button"
+				onclick={terapkanFilter}
+				class="rounded-xl bg-primary px-4 py-1.5 text-sm font-medium text-on-primary transition hover:opacity-95"
+			>
+				Terapkan
+			</button>
+			<label
+				class="flex min-w-52 flex-1 items-center gap-1.5 rounded-xl bg-surface-low px-3 py-1.5 text-xs sm:flex-none"
+			>
+				<span class="material-symbols-outlined text-base text-on-variant">search</span>
+				<input
+					type="search"
+					bind:value={cari}
+					placeholder="Cari catatan, kategori, nominal…"
+					aria-label="Cari transaksi"
+					onkeydown={(e) => {
+						if (e.key === 'Enter') {
+							e.preventDefault();
+							terapkanFilter();
+						}
+					}}
+					class="w-full bg-transparent text-sm text-on-surface outline-none placeholder:text-on-variant sm:w-44"
+				/>
+			</label>
+		</div>
 		</div>
 
 		{#if galat}
@@ -506,32 +524,14 @@
 								</span>
 							</div>
 							<div class="min-w-0">
-			<div class="flex flex-wrap items-center gap-2">
-				<label class="flex items-center gap-1.5 rounded-xl bg-surface-low px-3 py-1.5 text-xs">
-					<span class="material-symbols-outlined text-base text-on-variant">search</span>
-					<input
-						type="search"
-						bind:value={cari}
-						placeholder="Cari catatan, kategori, nominal…"
-						aria-label="Cari transaksi"
-						onkeydown={(e) => {
-							if (e.key === 'Enter') {
-								e.preventDefault();
-								terapkanFilter();
-							}
-						}}
-						class="w-44 bg-transparent text-sm text-on-surface outline-none placeholder:text-on-variant"
-					/>
-				</label>
-									<strong class="text-base">{t.kategori}</strong>
-									<span
-										class="rounded-full px-2 py-0.5 text-xs font-medium {t.tipe === 'masuk'
-											? 'bg-income-soft/50 text-income'
-											: 'bg-expense-soft/50 text-error'}"
-									>
-										{t.tipe === 'masuk' ? 'Masuk' : 'Keluar'}
-									</span>
-								</div>
+								<strong class="text-base">{t.kategori}</strong>
+								<span
+									class="rounded-full px-2 py-0.5 text-xs font-medium {t.tipe === 'masuk'
+										? 'bg-income-soft/50 text-income'
+										: 'bg-expense-soft/50 text-error'}"
+								>
+									{t.tipe === 'masuk' ? 'Masuk' : 'Keluar'}
+								</span>
 								<p class="mt-0.5 text-xs text-on-variant">
 									{t.dompet} • {formatTanggal(t.tanggal)} • {t.pencatat}
 								</p>
