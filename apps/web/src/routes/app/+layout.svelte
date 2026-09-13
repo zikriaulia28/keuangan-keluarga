@@ -1,19 +1,12 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api } from '$lib/api';
+	import type { LayoutData } from './$types';
 
-	interface Me {
-		id: number;
-		username: string;
-		role: string;
-	}
+	let { children, data }: { children: any; data: LayoutData } = $props();
 
-	let { children } = $props();
-
-	let user = $state<Me | null>(null);
-	let memeriksa = $state(true);
+	const user = $derived(data.user);
 
 	const navSemua = [
 		{ href: '/app', label: 'Dashboard', ikon: 'dashboard' },
@@ -41,17 +34,6 @@
 		}
 		await goto('/');
 	}
-
-	onMount(async () => {
-		try {
-			user = await api<Me>('/api/me');
-		} catch {
-			await goto('/');
-			return;
-		} finally {
-			memeriksa = false;
-		}
-	});
 </script>
 
 <div class="flex min-h-dvh flex-col bg-surface font-sans text-on-surface">
@@ -104,11 +86,7 @@
 		</aside>
 
 		<main class="w-full min-w-0 flex-1 py-4 pb-24 md:py-6 md:pb-12">
-			{#if memeriksa}
-				<p class="text-sm text-on-variant">Memeriksa sesi…</p>
-			{:else if user}
-				{@render children()}
-			{/if}
+			{@render children()}
 		</main>
 	</div>
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api, rupiah } from '$lib/api';
+	import type { PageData } from './$types';
 
 	interface PerKategori {
 		kategori: string;
@@ -47,11 +48,9 @@
 		jatuhTempo: string | null;
 		catatan: string | null;
 	}
-	interface Me {
-		id: number;
-		username: string;
-		role: string;
-	}
+
+	let { data }: { data: PageData } = $props();
+	const namaPengguna = $derived(data.user.username);
 
 	function bulanIni() {
 		const d = new Date();
@@ -96,7 +95,6 @@
 	let bulanLalu = $state<Ringkasan | null>(null);
 	let tagihan = $state<Tagihan[]>([]);
 	let utang = $state<Utang[]>([]);
-	let namaPengguna = $state('');
 	let memuat = $state(true);
 	let galat = $state('');
 
@@ -117,7 +115,7 @@
 	async function muat() {
 		memuat = true;
 		galat = '';
-		try {
+ 	try {
 			const [r, t, u] = await Promise.all([
 				api<Ringkasan>(`/api/ringkasan?bulan=${encodeURIComponent(bulan)}`),
 				api<Tagihan[]>(`/api/tagihan?bulan=${encodeURIComponent(bulan)}`),
@@ -132,12 +130,6 @@
 				);
 			} catch {
 				bulanLalu = null;
-			}
-			try {
-				const me = await api<Me>('/api/me');
-				namaPengguna = me.username;
-			} catch {
-				namaPengguna = '';
 			}
 		} catch (e) {
 			galat = e instanceof Error ? e.message : 'Gagal memuat dashboard.';

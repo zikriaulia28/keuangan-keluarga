@@ -1,29 +1,35 @@
 <script lang="ts">
   import { api, rupiah } from '$lib/api';
-  import { onMount } from 'svelte';
+  import { goto, invalidate } from '$app/navigation';
+  import type { PageData } from './$types';
 
   type Anggaran = { id: number; bulan: string; batas: number; kategori: string; id_kategori: number };
   type Kategori = { id: number; nama: string; tipe: string };
-  type Ringkasan = { anggaran: { kategori: string; batas: number; dipakai: number; lewat: boolean }[] };
 
   const NAMA_BULAN = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
     'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
   ];
 
-  const sekarang = new Date();
-  let bulan = $state(`${sekarang.getFullYear()}-${String(sekarang.getMonth() + 1).padStart(2, '0')}`);
+  let { data }: { data: PageData } = $props();
+  
+  const bulan = $derived(data.bulan);
+  const kategoris = $derived(data.kategoris);
+  const role = $derived(data.user.role);
   let daftar = $state<Anggaran[]>([]);
-  let kategoris = $state<Kategori[]>([]);
-  let pakai: Record<string, { dipakai: number; lewat: boolean }> = $state({});
-  let role = $state('');
-  let memuat = $state(true);
+  let pakai = $state<Record<string, { dipakai: number; lewat: boolean }>>({});
   let galat = $state('');
   let galatForm = $state('');
 
   let idKategori = $state('');
   let batas = $state('');
   let menyimpan = $state(false);
+
+  // Sync local state dengan data dari server saat berubah
+  $effect(() => {
+    daftar = data.daftar;
+    pakai = data.pakai;
+  });
 
   function geser(b: string, d: number) {
     const [y, m] = b.split('-').map(Number);
@@ -36,8 +42,7 @@
   }
   function pilih(b: string) {
     if (b === bulan) return;
-    bulan = b;
-    muat();
+    void goto(`/app/anggaran?bulan=${b}`, { keepFocus: true });
   }
 
   const totalBatas = $derived(daftar.reduce((s, a) => s + a.batas, 0));
@@ -75,33 +80,6 @@
     return m || baku;
   }
 
-  async function muat() {
-    memuat = true;
-    galat = '';
-    try {
-      const [me, list, kat] = await Promise.all([
-        api<{ role: string }>('/api/me'),
-        api<Anggaran[]>(`/api/anggaran?bulan=${bulan}`),
-        api<Kategori[]>('/api/kategori?tipe=keluar')
-      ]);
-      role = me.role;
-      daftar = list;
-      kategoris = kat;
-      try {
-        const ring = await api<Ringkasan>(`/api/ringkasan?bulan=${bulan}`);
-        pakai = Object.fromEntries((ring.anggaran ?? []).map((a) => [a.kategori, { dipakai: a.dipakai, lewat: a.lewat }]));
-      } catch {
-        pakai = {};
-      }
-    } catch (e) {
-      galat = pesan(e, 'Gagal memuat anggaran.');
-    } finally {
-      memuat = false;
-    }
-  }
-
-  onMount(muat);
-
   async function simpan(e: SubmitEvent) {
     e.preventDefault();
     galatForm = '';
@@ -118,7 +96,7 @@
       });
       idKategori = '';
       batas = '';
-      await muat();
+      await invalidate('anggaran');
     } catch (e2) {
       galatForm = pesan(e2, 'Gagal menyimpan.');
     } finally {
@@ -158,15 +136,7 @@
     </div>
   </div>
 
-  {#if memuat}
-    <div class="animate-pulse rounded-xl bg-lowest p-6 shadow-sm">
-      <div class="h-6 w-1/3 rounded bg-surface-container"></div>
-      <div class="mt-3 h-8 w-1/2 rounded bg-surface-container"></div>
-      <div class="mt-4 h-3 w-full rounded-full bg-surface-container"></div>
-    </div>
-    <p class="mt-3 text-sm text-on-variant">Memuat…</p>
-  {:else}
-    {#if galat}<p class="mb-3 rounded-xl bg-expense-soft px-4 py-3 text-sm text-error">{galat}</p>{/if}
+  {#if galat}<p class="mb-3 rounded-xl bg-expense-soft px-4 py-3 text-sm text-error">{galat}</p>{/if}
 
     <section class="flex flex-col gap-4 rounded-xl bg-lowest p-6 shadow-sm md:flex-row md:items-center md:justify-between">
       <div class="flex items-center gap-4">
@@ -311,5 +281,4 @@
         </div>
       {/if}
     </section>
-  {/if}
 </div>

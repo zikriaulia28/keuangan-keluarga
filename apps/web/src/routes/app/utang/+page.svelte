@@ -1,21 +1,23 @@
 <script lang="ts">
   import { api, rupiah } from '$lib/api';
-  import { onMount } from 'svelte';
+  import { goto, invalidate } from '$app/navigation';
+  import type { PageData } from './$types';
 
   type Utang = {
     id: number; arah: string; pihak: string; jumlah: number; terbayar: number;
     sisa: number; lunas: boolean; tanggal: string; jatuhTempo?: string | null; catatan?: string | null;
   };
 
+  let { data }: { data: PageData } = $props();
+
   let daftar = $state<Utang[]>([]);
   let semua = $state<Utang[]>([]);
-  let memuat = $state(true);
   let galat = $state('');
   let galatForm = $state('');
   let galatBayar = $state('');
 
-  let arahFilter = $state('');
-  let statusFilter = $state('aktif');
+  const arahFilter = $derived(data.arahFilter);
+  const statusFilter = $derived(data.statusFilter);
   let tambahBuka = $state(false);
 
   let arah = $state('utang');
@@ -29,6 +31,12 @@
   let bayarId = $state<number | null>(null);
   let bayarJumlah = $state('');
   let bayarTanggal = $state(new Date().toISOString().slice(0, 10));
+
+  // Sync local state dengan data dari server
+  $effect(() => {
+    daftar = data.daftar;
+    semua = data.semua;
+  });
 
   const totalUtang = $derived(semua.filter((u) => u.arah !== 'piutang' && !u.lunas).reduce((s, u) => s + u.sisa, 0));
   const countUtang = $derived(semua.filter((u) => u.arah !== 'piutang' && !u.lunas).length);
@@ -64,36 +72,18 @@
     return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
-  async function muat() {
-    memuat = true;
-    galat = '';
-    try {
-      const q = new URLSearchParams();
-      if (arahFilter) q.set('arah', arahFilter);
-      if (statusFilter) q.set('status', statusFilter);
-      const qs = q.toString();
-      const [list, all] = await Promise.all([
-        api<Utang[]>(`/api/utang${qs ? `?${qs}` : ''}`),
-        api<Utang[]>('/api/utang').catch(() => [] as Utang[])
-      ]);
-      daftar = list;
-      semua = all;
-    } catch (e) {
-      galat = pesan(e, 'Gagal memuat utang.');
-    } finally {
-      memuat = false;
-    }
-  }
-
-  onMount(muat);
-
   function gantiArah(v: string) {
-    arahFilter = v;
-    muat();
+    const params = new URLSearchParams();
+    if (v) params.set('arah', v);
+    if (statusFilter) params.set('status', statusFilter);
+    void goto(`/app/utang?${params.toString()}`, { keepFocus: true });
   }
+  
   function gantiStatus(v: string) {
-    statusFilter = v;
-    muat();
+    const params = new URLSearchParams();
+    if (arahFilter) params.set('arah', arahFilter);
+    if (v) params.set('status', v);
+    void goto(`/app/utang?${params.toString()}`, { keepFocus: true });
   }
 
   async function tambah(e: SubmitEvent) {
@@ -115,7 +105,7 @@
       });
       pihak = ''; jumlah = ''; jatuhTempo = ''; catatan = '';
       tambahBuka = false;
-      await muat();
+      await invalidate('utang');
     } catch (e2) {
       galatForm = pesan(e2, 'Gagal menambah.');
     } finally {
@@ -136,7 +126,7 @@
       });
       bayarId = null;
       bayarJumlah = '';
-      await muat();
+      await invalidate('utang');
     } catch (e) {
       galatBayar = pesan(e, 'Gagal membayar.');
     }
@@ -322,28 +312,17 @@
     </div>
   </div>
 
-  {#if memuat}
-    <div class="mt-4 flex flex-col gap-4">
-      {#each [1, 2] as _}
-        <div class="animate-pulse rounded-xl bg-lowest p-4 shadow-sm">
-          <div class="h-5 w-1/2 rounded bg-surface-container"></div>
-          <div class="mt-3 h-12 rounded-lg bg-surface-container"></div>
-        </div>
-      {/each}
+  {#if galat}<p class="mt-4 rounded-xl bg-expense-soft px-4 py-3 text-sm text-error">{galat}</p>{/if}
+  {#if galatBayar}<p class="mt-4 rounded-xl bg-expense-soft px-4 py-3 text-sm text-error">{galatBayar}</p>{/if}
+  {#if daftar.length === 0}
+    <div class="mt-4 flex flex-col items-center gap-2 rounded-xl bg-lowest p-8 text-center shadow-sm">
+      <span class="material-symbols-outlined text-[32px] text-outline">handshake</span>
+      <p class="font-medium text-on-surface">Tidak ada data</p>
+      <p class="text-sm text-on-variant">Belum ada catatan utang atau piutang pada filter ini.</p>
     </div>
-    <p class="mt-3 text-sm text-on-variant">Memuat…</p>
   {:else}
-    {#if galat}<p class="mt-4 rounded-xl bg-expense-soft px-4 py-3 text-sm text-error">{galat}</p>{/if}
-    {#if galatBayar}<p class="mt-4 rounded-xl bg-expense-soft px-4 py-3 text-sm text-error">{galatBayar}</p>{/if}
-    {#if daftar.length === 0}
-      <div class="mt-4 flex flex-col items-center gap-2 rounded-xl bg-lowest p-8 text-center shadow-sm">
-        <span class="material-symbols-outlined text-[32px] text-outline">handshake</span>
-        <p class="font-medium text-on-surface">Tidak ada data</p>
-        <p class="text-sm text-on-variant">Belum ada catatan utang atau piutang pada filter ini.</p>
-      </div>
-    {:else}
-      <div class="mt-4 flex flex-col gap-4">
-        {#each daftar as u}
+    <div class="mt-4 flex flex-col gap-4">
+      {#each daftar as u}
           {@const isPiutang = u.arah === 'piutang'}
           <div class="flex flex-col gap-4 rounded-xl bg-lowest p-4 shadow-sm {u.lunas ? 'opacity-80' : ''}">
             <div class="flex items-start justify-between gap-2">
@@ -468,6 +447,5 @@
           </div>
         {/each}
       </div>
-    {/if}
   {/if}
 </div>

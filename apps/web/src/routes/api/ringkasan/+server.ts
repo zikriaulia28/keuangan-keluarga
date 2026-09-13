@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { and, eq, sql } from 'drizzle-orm';
 import { anggaran, db, dompet, kategori, transaksi } from 'db';
 import { currentUser } from '$lib/server/auth';
-import { saldoDompet } from '$lib/server/saldo';
+import { saldoSemuaDompet } from '$lib/server/saldo';
 
 const BULAN = /^[0-9]{4}-[0-9]{2}$/;
 
@@ -31,8 +31,8 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
   const pakai: Record<string, number> = {};
   for (const r of perKategori) pakai[r.kategori] = Number(r.total);
   const daftarDompet = await db.select().from(dompet).orderBy(dompet.nama);
-  const daftarSaldo = [];
-  for (const d of daftarDompet) daftarSaldo.push({ id: d.id, nama: d.nama, saldo: await saldoDompet(db, d.id) });
+  const saldoMap = await saldoSemuaDompet(db);
+  const daftarSaldo = daftarDompet.map((d) => ({ id: d.id, nama: d.nama, saldo: saldoMap.get(d.id) ?? 0 }));
   const ang = await db
     .select({ kategori: kategori.nama, batas: anggaran.batas })
     .from(anggaran)

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api, rupiah } from '$lib/api';
   import { onMount } from 'svelte';
+  import type { PageData } from './$types';
 
   type Tagihan = {
     id: number; nama: string; jumlah: number; hari: number;
@@ -9,6 +10,9 @@
   type Kategori = { id: number; nama: string; tipe: string };
   type Dompet = { id?: number; id_dompet?: number; nama?: string; nama_dompet?: string; saldo: number };
   type Transaksi = { catatan: string; dompet: string };
+
+  let { data }: { data: PageData } = $props();
+  const role = $derived(data.user.role);
 
   const NAMA_BULAN = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -22,7 +26,6 @@
   let kategoris = $state<Kategori[]>([]);
   let dompets = $state<Dompet[]>([]);
   let via: Record<number, string> = $state({});
-  let role = $state('');
   let memuat = $state(true);
   let galat = $state('');
   let galatForm = $state('');
@@ -128,13 +131,11 @@
     galat = '';
     galatBayar = '';
     try {
-      const [me, list, kat, dom] = await Promise.all([
-        api<{ role: string }>('/api/me'),
+      const [list, kat, dom] = await Promise.all([
         api<Tagihan[]>(`/api/tagihan?bulan=${bulan}`),
         api<Kategori[]>('/api/kategori?tipe=keluar').catch(() => [] as Kategori[]),
         api<Dompet[]>('/api/dompet').catch(() => [] as Dompet[])
       ]);
-      role = me.role;
       daftar = list;
       kategoris = kat;
       dompets = dom;

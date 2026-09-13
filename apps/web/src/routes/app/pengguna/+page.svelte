@@ -1,12 +1,14 @@
 <script lang="ts">
   import { api } from '$lib/api';
   import { onMount } from 'svelte';
+  import type { PageData } from './$types';
 
   type User = { id: number; username: string; role: string; created_at: string };
 
-  let saya = $state('');
-  let sayaId = $state(0);
-  let role = $state('');
+  let { data }: { data: PageData } = $props();
+  const saya = $derived(data.user.username);
+  const sayaId = $derived(data.user.id);
+  const role = $derived(data.user.role);
   let daftar = $state<User[]>([]);
   let memuat = $state(true);
   let galat = $state('');
@@ -51,10 +53,6 @@
     memuat = true;
     galat = '';
     try {
-      const me = await api<{ id: number; username: string; role: string }>('/api/me');
-      saya = me.username;
-      sayaId = me.id;
-      role = me.role;
       if (role === 'admin') {
         daftar = await api<User[]>('/api/users');
       }
