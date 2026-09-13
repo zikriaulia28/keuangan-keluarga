@@ -1,5 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
-import { and, eq, gt } from 'drizzle-orm';
+import { and, eq, gt, sql } from 'drizzle-orm';
 import { db, sessions, users } from 'db';
 import type { Cookies } from '@sveltejs/kit';
 
@@ -39,11 +39,11 @@ export function verifyPassword(pw: string, stored: string): boolean {
 export async function currentUser(cookies: Pick<Cookies, 'get'>): Promise<SessionUser | null> {
   const token = cookies.get('session');
   if (!token) return null;
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  // now() sisi Postgres dalam UTC agar se-basis dengan stamp UTC saat tulis sesi.
   const rows = await db
     .select({ id: users.id, username: users.username, role: users.role })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
-    .where(and(eq(sessions.token, token), gt(sessions.expiresAt, now)));
+    .where(and(eq(sessions.token, token), gt(sessions.expiresAt, sql`(now() at time zone 'utc')`)));
   return (rows[0] as SessionUser | undefined) ?? null;
 }
