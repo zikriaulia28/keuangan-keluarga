@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { and, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, lt, lte, or, sql } from 'drizzle-orm';
 import { db, dompet, kategori, transaksi, users } from 'db';
 import { currentUser } from '$lib/server/auth';
 import { saldoDompet } from '$lib/server/saldo';
@@ -30,7 +30,13 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
     if (orCond) conds.push(orCond);
   }
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit') ?? 100) || 100, 1), 500);
-  const offset = Math.max(Number(url.searchParams.get('offset') ?? 0) || 0, 0);
+  // Keyset pagination searah ORDER BY tanggal DESC, id DESC; ganti offset yang memindai ulang.
+  const cursor = /^(\d{4}-\d{2}-\d{2}):(\d+)$/.exec(url.searchParams.get('cursor') ?? '');
+  if (cursor) {
+    conds.push(
+      or(lt(transaksi.tanggal, cursor[1]), and(eq(transaksi.tanggal, cursor[1]), lt(transaksi.id, Number(cursor[2]))))!,
+    );
+  }
   return json(
     await db
       .select({
@@ -51,8 +57,7 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
       .innerJoin(users, eq(transaksi.userId, users.id))
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(transaksi.tanggal), desc(transaksi.id))
-      .limit(limit)
-      .offset(offset),
+      .limit(limit),
   );
 };
 
