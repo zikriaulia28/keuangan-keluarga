@@ -29,6 +29,8 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
         tipe: transaksi.tipe,
         jumlah: transaksi.jumlah,
         catatan: transaksi.catatan,
+        id_dompet: transaksi.dompetId,
+        id_kategori: transaksi.kategoriId,
         dompet: dompet.nama,
         kategori: kategori.nama,
         pencatat: users.username,
@@ -71,7 +73,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     typeof body.jumlah !== 'number' ||
     !Number.isInteger(body.jumlah) ||
     body.jumlah < 1 ||
-    (body.catatan !== undefined && typeof body.catatan !== 'string')
+    (body.catatan !== undefined && body.catatan !== null && typeof body.catatan !== 'string')
   ) {
     return json({ error: 'INVALID_TRANSACTION' }, { status: 400 });
   }
