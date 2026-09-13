@@ -34,8 +34,6 @@ bun --filter db db:push     # migrasi skema ke Neon (sekali saja / saat skema be
 bun --filter web dev        # http://localhost:5173
 ```
 
-Akun default: `admin/admin123` (admin), `istri/istri123` (user) — **ganti setelah masuk** via Halaman Pengguna.
-
 ## Deploy (Vercel)
 
 1. Push repo ini ke GitHub.
