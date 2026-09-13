@@ -9,6 +9,8 @@
 		tipe: 'masuk' | 'keluar';
 		jumlah: number;
 		catatan: string | null;
+		id_dompet: number;
+		id_kategori: number | null;
 		dompet: string;
 		kategori: string;
 		pencatat: string;
@@ -67,14 +69,28 @@
 	let galatHapus = $state('');
 	let hapusId = $state<number | null>(null);
 	let menghapus = $state(false);
+	let editId = $state<number | null>(null);
 
 	const kategoriAktif = $derived(tipe === 'masuk' ? kategoriMasuk : kategoriKeluar);
 	const totalSaldo = $derived(dompet.reduce((s, d) => s + d.saldo, 0));
 	const dompetAktif = $derived(dompet.find((d) => d.id_dompet === id_dompet) ?? null);
-	const saldoKurang = $derived(
-		tipe === 'keluar' && jumlah !== null && dompetAktif !== null && jumlah > dompetAktif.saldo
-	);
-
+	const transaksiAwal = $derived(editId === null ? null : (daftar.find((t) => t.id === editId) ?? null));
+	// Saldo tampilan sudah termasuk baris lama, jadi keluarkan dulu efeknya sebelum menilai nilai baru.
+	const saldoKurang = $derived.by(() => {
+		if (jumlah === null || jumlah <= 0 || !dompetAktif || !id_dompet) return false;
+		const efekBaru = tipe === 'masuk' ? jumlah : -jumlah;
+		let saldoBaru = dompetAktif.saldo + efekBaru;
+		if (transaksiAwal && transaksiAwal.id_dompet === id_dompet) {
+			saldoBaru -= transaksiAwal.tipe === 'masuk' ? transaksiAwal.jumlah : -transaksiAwal.jumlah;
+		}
+		if (saldoBaru < 0) return true;
+		if (transaksiAwal && transaksiAwal.id_dompet !== id_dompet) {
+			const asal = dompet.find((d) => d.id_dompet === transaksiAwal.id_dompet);
+			if (asal && asal.saldo - (transaksiAwal.tipe === 'masuk' ? transaksiAwal.jumlah : -transaksiAwal.jumlah) < 0)
+				return true;
+		}
+		return false;
+	});
 	function pesan(e: unknown, baku: string) {
 		return e instanceof Error ? e.message : baku;
 	}
@@ -116,7 +132,31 @@
 		id_kategori = null;
 	}
 
-	async function tambah(e: SubmitEvent) {
+	function mulaiUbah(t: Transaksi) {
+		hapusId = null;
+		galatForm = '';
+		galatHapus = '';
+		editId = t.id;
+		tanggal = t.tanggal.slice(0, 10);
+		tipe = t.tipe;
+		id_dompet = t.id_dompet;
+		id_kategori = t.id_kategori;
+		jumlah = t.jumlah;
+		catatan = t.catatan ?? '';
+		document.getElementById('form-transaksi')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+
+	function batalUbah() {
+		editId = null;
+		galatForm = '';
+		tanggal = hariIni();
+		tipe = 'keluar';
+		id_kategori = null;
+		jumlah = null;
+		catatan = '';
+	}
+
+	async function simpan(e: SubmitEvent) {
 		e.preventDefault();
 		galatForm = '';
 		if (!jumlah || jumlah <= 0) {
@@ -133,24 +173,24 @@
 		}
 		menyimpan = true;
 		try {
-			await api('/api/transaksi', {
-				method: 'POST',
-				body: JSON.stringify({
-					tanggal,
-					tipe,
-					id_dompet,
-					id_kategori,
-					jumlah,
-					catatan: catatan.trim() ? catatan.trim() : null
-				})
+			const payload = JSON.stringify({
+				tanggal,
+				tipe,
+				id_dompet,
+				id_kategori,
+				jumlah,
+				catatan: catatan.trim() ? catatan.trim() : null
 			});
-			jumlah = null;
-			catatan = '';
-			id_kategori = null;
+			if (editId === null) {
+				await api('/api/transaksi', { method: 'POST', body: payload });
+			} else {
+				await api(`/api/transaksi/${editId}`, { method: 'PATCH', body: payload });
+			}
+			batalUbah();
 			const [d] = await Promise.all([api<Dompet[]>('/api/dompet'), muatDaftar(), muatStat()]);
 			dompet = d;
 		} catch (e) {
-			galatForm = pesan(e, 'Gagal menambah transaksi.');
+			galatForm = pesan(e, editId === null ? 'Gagal menambah transaksi.' : 'Gagal menyimpan perubahan.');
 		} finally {
 			menyimpan = false;
 		}
@@ -162,6 +202,7 @@
 		try {
 			await api(`/api/transaksi/${id}`, { method: 'DELETE' });
 			hapusId = null;
+			if (id === editId) batalUbah();
 			const [d] = await Promise.all([api<Dompet[]>('/api/dompet'), muatDaftar(), muatStat()]);
 			dompet = d;
 		} catch (e) {
@@ -241,13 +282,13 @@
 				>
 					<span class="material-symbols-outlined text-lg">edit_note</span>
 				</div>
-				<h2 class="text-lg font-semibold">Form Pencatatan Transaksi</h2>
+				<h2 class="text-lg font-semibold">{editId === null ? 'Form Pencatatan Transaksi' : 'Ubah Transaksi'}</h2>
 			</div>
 			<span class="rounded-full bg-primary-bright/10 px-2.5 py-1 text-xs font-medium text-primary">
-				Real-time Validation
+				{editId === null ? 'Real-time Validation' : 'Mode Ubah'}
 			</span>
 		</div>
-		<form onsubmit={tambah} class="flex flex-col gap-4">
+		<form onsubmit={simpan} class="flex flex-col gap-4">
 			<div class="flex gap-1 rounded-xl bg-surface-container p-1" role="group" aria-label="Tipe transaksi">
 				<button
 					type="button"
@@ -364,14 +405,27 @@
 					{galatForm}
 				</p>
 			{/if}
-			<div class="flex justify-end pt-1">
+			<div class="flex justify-end gap-2 pt-1">
+				{#if editId !== null}
+					<button
+						type="button"
+						onclick={batalUbah}
+						disabled={menyimpan}
+						class="flex w-full items-center justify-center gap-2 rounded-xl bg-surface-container px-6 py-3 text-sm font-medium transition hover:bg-surface-high disabled:opacity-60 md:w-auto"
+					>
+						<span class="material-symbols-outlined text-xl">close</span>
+						<span>Batal</span>
+					</button>
+				{/if}
 				<button
 					type="submit"
 					disabled={menyimpan}
 					class="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-medium text-on-primary shadow-md transition hover:opacity-95 active:scale-95 disabled:opacity-60 md:w-auto"
 				>
 					<span class="material-symbols-outlined text-xl">save</span>
-					<span>{menyimpan ? 'Menyimpan…' : 'Simpan Transaksi'}</span>
+					<span>
+						{menyimpan ? 'Menyimpan…' : editId === null ? 'Simpan Transaksi' : 'Simpan Perubahan'}
+					</span>
 				</button>
 			</div>
 		</form>
@@ -496,14 +550,24 @@
 										</button>
 									</div>
 								{:else}
-									<button
-										type="button"
-										onclick={() => (hapusId = t.id)}
-										aria-label={`Hapus transaksi ${t.kategori} ${rupiah(t.jumlah)}`}
-										class="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-container text-on-variant transition hover:bg-surface-high"
-									>
-										<span class="material-symbols-outlined text-xl">delete</span>
-									</button>
+									<div class="flex items-center gap-1.5">
+										<button
+											type="button"
+											onclick={() => mulaiUbah(t)}
+											aria-label={`Ubah transaksi ${t.kategori} ${rupiah(t.jumlah)}`}
+											class="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-container text-on-variant transition hover:bg-surface-high"
+										>
+											<span class="material-symbols-outlined text-xl">edit</span>
+										</button>
+										<button
+											type="button"
+											onclick={() => (hapusId = t.id)}
+											aria-label={`Hapus transaksi ${t.kategori} ${rupiah(t.jumlah)}`}
+											class="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-container text-on-variant transition hover:bg-surface-high"
+										>
+											<span class="material-symbols-outlined text-xl">delete</span>
+										</button>
+									</div>
 								{/if}
 							</div>
 						</div>

@@ -23,6 +23,8 @@ export const load: PageServerLoad = async ({ cookies }) => {
 				tipe: transaksi.tipe,
 				jumlah: transaksi.jumlah,
 				catatan: transaksi.catatan,
+				id_dompet: transaksi.dompetId,
+				id_kategori: transaksi.kategoriId,
 				dompet: dompet.nama,
 				kategori: kategori.nama,
 				pencatat: users.username
