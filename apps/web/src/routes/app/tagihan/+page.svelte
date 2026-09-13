@@ -2,6 +2,7 @@
   import { api, rupiah } from '$lib/api';
   import { onMount } from 'svelte';
   import RupiahInput from '$lib/components/RupiahInput.svelte';
+  let { data } = $props();
 
   type Tagihan = {
     id: number; nama: string; jumlah: number; hari: number;
