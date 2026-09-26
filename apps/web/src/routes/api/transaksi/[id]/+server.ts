@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { eq } from 'drizzle-orm';
 import { db, dompet, kategori, transaksi } from 'db';
 import { currentUser } from '$lib/server/auth';
-import { saldoDompet } from '$lib/server/saldo';
+import { saldoDompet, saldoSemuaDompet } from '$lib/server/saldo';
 
 const TGL = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const efek = (tipe: string, jumlah: number) => (tipe === 'masuk' ? jumlah : -jumlah);
@@ -61,13 +61,20 @@ export const PATCH: RequestHandler = async ({ request, cookies, params }) => {
 	if (!d[0]) return json({ error: 'INVALID_WALLET' }, { status: 400 });
 	const k = await db.select().from(kategori).where(eq(kategori.id, body.id_kategori)).limit(1);
 	if (!k[0] || k[0].tipe !== body.tipe) return json({ error: 'INVALID_CATEGORY' }, { status: 400 });
+	// Satu pembacaan saldo untuk dompet tujuan dan dompet asal sekaligus, bukan dua
+	// round-trip berurutan. Pindah dompet butuh keduanya; dompet sama cukup satu.
+	const perluAsal = lama.dompetId !== body.id_dompet;
+	const saldo = await (perluAsal
+		? saldoSemuaDompet(db)
+		: Promise.resolve(new Map([[body.id_dompet, await saldoDompet(db, body.id_dompet)]]))
+	);
 	const saldoBaru =
-		(await saldoDompet(db, body.id_dompet)) -
-		(lama.dompetId === body.id_dompet ? efek(lama.tipe, lama.jumlah) : 0) +
+		(saldo.get(body.id_dompet) ?? 0) -
+		(perluAsal ? efek(lama.tipe, lama.jumlah) : 0) +
 		efek(body.tipe, body.jumlah);
 	if (saldoBaru < 0) return json({ error: 'INSUFFICIENT_BALANCE' }, { status: 400 });
-	if (lama.dompetId !== body.id_dompet) {
-		const saldoAsal = (await saldoDompet(db, lama.dompetId)) - efek(lama.tipe, lama.jumlah);
+	if (perluAsal) {
+		const saldoAsal = (saldo.get(lama.dompetId) ?? 0) - efek(lama.tipe, lama.jumlah);
 		if (saldoAsal < 0) return json({ error: 'INSUFFICIENT_BALANCE' }, { status: 400 });
 	}
 	await db

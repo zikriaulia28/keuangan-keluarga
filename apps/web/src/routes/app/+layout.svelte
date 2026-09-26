@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api } from '$lib/api';
+	import NavIcon from '$lib/components/NavIcon.svelte';
 
 	interface Me {
 		id: number;
@@ -15,21 +16,33 @@
 	let user = $state<Me | null>(null);
 	let memeriksa = $state(true);
 
-	const navSemua = [
-		{ href: '/app', label: 'Dashboard', ikon: 'dashboard' },
-		{ href: '/app/transaksi', label: 'Transaksi', ikon: 'receipt_long' },
-		{ href: '/app/anggaran', label: 'Anggaran', ikon: 'account_balance_wallet' },
-		{ href: '/app/utang', label: 'Utang', ikon: 'handshake' },
-		{ href: '/app/tagihan', label: 'Tagihan', ikon: 'payments' },
-		{ href: '/app/pengguna', label: 'Pengguna', ikon: 'group', admin: true }
+	// Lima tujuan utama, semuanya dalam jangkauan ibu jari.
+	const navBawah = [
+		{ href: '/app', label: 'Ringkasan', ikon: 'ringkasan' },
+		{ href: '/app/transaksi', label: 'Catat', ikon: 'catat' },
+		{ href: '/app/tagihan', label: 'Tagihan', ikon: 'tagihan' },
+		{ href: '/app/utang', label: 'Utang', ikon: 'utang' },
+		{ href: '/app/lainnya', label: 'Lainnya', ikon: 'lainnya' }
 	];
 
-	const nav = $derived(navSemua.filter((item) => !item.admin || user?.role === 'admin'));
-	const inisial = $derived(user ? user.username.charAt(0).toUpperCase() : '?');
+	// Di laptop semua tujuan tampil.
+	const navSidebar = [
+		{ href: '/app', label: 'Ringkasan', ikon: 'ringkasan' },
+		{ href: '/app/transaksi', label: 'Transaksi', ikon: 'catat' },
+		{ href: '/app/dompet', label: 'Dompet', ikon: 'dompet' },
+		{ href: '/app/anggaran', label: 'Anggaran', ikon: 'anggaran' },
+		{ href: '/app/tagihan', label: 'Tagihan', ikon: 'tagihan' },
+		{ href: '/app/utang', label: 'Utang', ikon: 'utang' },
+		{ href: '/app/pengguna', label: 'Pengguna', ikon: 'pengguna', admin: true },
+		{ href: '/app/lainnya', label: 'Lainnya', ikon: 'lainnya' }
+	];
+
+	const sidebar = $derived(navSidebar.filter((item) => !item.admin || user?.role === 'admin'));
 
 	function aktif(href: string) {
 		const saatIni = page.url.pathname;
 		if (href === '/app') return saatIni === '/app';
+		if (href === '/app/lainnya') return saatIni === '/app/lainnya';
 		return saatIni.startsWith(href);
 	}
 
@@ -54,79 +67,70 @@
 	});
 </script>
 
-<div class="flex min-h-dvh flex-col bg-surface font-sans text-on-surface">
-	<header class="sticky top-0 z-40 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
-		<div class="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 md:px-8">
+<div class="flex min-h-dvh flex-col bg-ground">
+	<header class="sticky top-0 z-40 bg-ground/85 backdrop-blur-md">
+		<div
+			class="mx-auto flex h-14 w-full max-w-2xl items-center justify-between px-4 md:h-16 md:max-w-6xl md:px-8"
+		>
+			<a href="/app" class="flex items-center gap-2.5">
+				<img src="/logo.png" alt="" class="h-7 w-auto object-contain" />
+				<span class="text-[15px] font-extrabold tracking-tight">Kas Keluarga</span>
+			</a>
 			<div class="flex items-center gap-2">
-				<img src="/logo.png" alt="Logo Kas Keluarga" class="h-8 w-auto object-contain" />
-				<span class="text-base font-bold">Kas Keluarga</span>
-			</div>
-			<div class="flex items-center gap-2.5">
-				{#if user}
-					<span
-						class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-on-primary"
-						title={user.username}
-					>
-						{inisial}
-					</span>
-					<span class="hidden text-sm font-medium sm:block">{user.username}</span>
-				{/if}
-				<button
-					type="button"
-					onclick={keluar}
-					class="flex items-center gap-1 rounded-lg bg-surface-container px-3 py-2 text-sm font-medium transition hover:bg-surface-high"
-				>
-					<span class="material-symbols-outlined text-lg">logout</span>
-					<span class="hidden sm:inline">Keluar</span>
+				<span class="hidden text-sm font-semibold text-ink-2 sm:block">{user?.username ?? ''}</span>
+				<button type="button" onclick={keluar} class="btn btn-ghost !min-h-9 !px-3 text-sm">
+					Keluar
 				</button>
 			</div>
 		</div>
 	</header>
 
-	<div class="mx-auto flex w-full max-w-6xl flex-1 gap-6 px-4 md:px-8">
-		<aside class="sticky top-16 hidden h-[calc(100dvh-4rem)] w-60 shrink-0 flex-col gap-1 py-6 md:flex">
+	<div class="mx-auto flex w-full max-w-2xl flex-1 md:max-w-6xl">
+		<aside class="sticky top-16 hidden h-[calc(100dvh-4rem)] w-52 shrink-0 py-6 pr-6 md:block">
 			<nav aria-label="Navigasi utama" class="flex flex-col gap-1">
-				{#each nav as item (item.href)}
+				{#each sidebar as item (item.href)}
 					<a
 						href={item.href}
 						aria-current={aktif(item.href) ? 'page' : undefined}
-						class="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition {aktif(
+						class="flex min-h-11 items-center rounded-xl px-3 text-[15px] transition-colors {aktif(
 							item.href
 						)
-							? 'bg-primary font-semibold text-on-primary shadow-sm'
-							: 'text-on-variant hover:bg-surface-container'}"
+							? 'bg-accent-soft font-bold text-accent-ink'
+							: 'font-semibold text-ink-2 hover:bg-card'}"
 					>
-						<span class="material-symbols-outlined text-xl" aria-hidden="true">{item.ikon}</span>
 						{item.label}
 					</a>
 				{/each}
 			</nav>
 		</aside>
 
-		<main class="w-full min-w-0 flex-1 py-4 pb-24 md:py-6 md:pb-12">
+		<main class="min-w-0 flex-1 px-4 pt-4 pb-28 md:px-8 md:pt-6 md:pb-16">
 			{#if memeriksa}
-				<p class="text-sm text-on-variant">Memeriksa sesi…</p>
+				<p class="label">Memeriksa sesi…</p>
 			{:else if user}
 				{@render children()}
 			{/if}
 		</main>
 	</div>
 
+	<!-- HP: ikon + label, aktif filled hijau. -->
 	<nav
 		aria-label="Navigasi bawah"
-		class="fixed inset-x-0 bottom-0 z-40 bg-surface/90 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-xl shadow-[0_-1px_8px_rgba(0,0,0,0.04)] md:hidden"
+		class="fixed inset-x-0 bottom-0 z-40 bg-ground/90 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md md:hidden"
 	>
-		<div class="flex h-16 items-center justify-around px-1">
-			{#each nav as item (item.href)}
+		<div class="mx-auto flex h-16 max-w-2xl items-stretch gap-1 px-2">
+			{#each navBawah as item (item.href)}
 				<a
 					href={item.href}
 					aria-current={aktif(item.href) ? 'page' : undefined}
-					class="flex h-12 w-12 flex-col items-center justify-center gap-0.5 {aktif(item.href)
-						? 'font-semibold text-primary'
-						: 'text-on-variant'}"
+					class="flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-0.5 transition-colors {aktif(
+						item.href
+					)
+						? 'bg-accent-soft font-bold text-accent-ink'
+						: 'font-semibold text-ink-3'}"
 				>
-					<span class="material-symbols-outlined text-xl" aria-hidden="true">{item.ikon}</span>
-					<span class="text-xs">{item.label}</span>
+					<NavIcon name={item.ikon} size={22} />
+					<span class="w-full truncate text-center text-[10.5px] leading-none">{item.label}</span>
 				</a>
 			{/each}
 		</div>

@@ -129,10 +129,13 @@
 
 	async function terapkanFilter(tambah = false) {
 		galat = '';
+		memuat = true;
 		try {
 			await muatDaftar(tambah);
 		} catch (e) {
 			galat = pesan(e, 'Gagal memuat transaksi.');
+		} finally {
+			memuat = false;
 		}
 	}
 
@@ -222,390 +225,354 @@
 	}
 </script>
 
-<div class="flex flex-col gap-4 md:gap-6">
-<div class="mb-1 flex items-center justify-between gap-3">
+<div class="mx-auto w-full max-w-2xl md:max-w-4xl">
+	<!-- Kepala halaman: satu jalan masuk ke form, bukan tombol utama. -->
+	<div class="flex items-center justify-between gap-3">
 		<div class="min-w-0">
-			<h1 class="text-xl font-bold text-on-surface sm:text-2xl">Pencatatan & Riwayat Kas</h1>
-			<p class="mt-0.5 text-sm text-on-variant">Kelola arus kas keluar masuk keluarga dengan transparan</p>
+			<h1 class="text-[19px] font-extrabold tracking-tight">Transaksi</h1>
+			<p class="mt-0.5 truncate text-[13px] text-ink-3">Masuk dan keluar kas keluarga.</p>
 		</div>
 		<button
 			type="button"
 			onclick={catatBaru}
-			class="flex shrink-0 items-center gap-1 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-on-primary shadow-md transition hover:opacity-95 active:scale-95"
+			class="btn btn-ghost !min-h-11 shrink-0 !px-3 text-[13px]"
 		>
-			<span class="material-symbols-outlined text-xl">add_circle</span>
-			<span class="hidden sm:inline">Catat Baru</span>
+			Catat transaksi
 		</button>
 	</div>
 
-	<div class="grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-4">
-		<div
-			class="flex items-center gap-3 rounded-xl bg-lowest p-4 shadow-[0_4px_20px_-2px_rgba(37,99,235,0.08)]"
-		>
-			<div
-				class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-bright/10 text-primary"
-			>
-				<span class="material-symbols-outlined text-2xl">account_balance_wallet</span>
-			</div>
-			<div class="min-w-0">
-				<span class="block text-xs text-on-variant">Total Saldo Dompet</span>
-				<strong class="block truncate text-lg font-semibold">{rupiah(totalSaldo)}</strong>
-			</div>
+	<!-- Saldo gabungan seluruh dompet. -->
+	<section class="card mt-4 p-5 md:p-6">
+		<div class="flex items-baseline justify-between gap-3">
+			<p class="label">Total Saldo Dompet</p>
+			{#if totalSaldo < 0}
+				<span class="chip chip-alert">Saldo minus</span>
+			{/if}
 		</div>
-		<div
-			class="flex items-center gap-3 rounded-xl bg-lowest p-4 shadow-[0_4px_20px_-2px_rgba(37,99,235,0.08)]"
-		>
-			<div
-				class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-income-soft text-income-deep"
-			>
-				<span class="material-symbols-outlined text-2xl">arrow_downward</span>
-			</div>
-			<div class="min-w-0">
-				<span class="block text-xs text-on-variant">Total Masuk (Bulan Ini)</span>
-				<strong class="block truncate text-lg font-semibold text-income">{rupiah(statMasuk)}</strong>
-			</div>
+		<div class="figure mt-1.5 text-[clamp(2.25rem,10vw,3.25rem)] {totalSaldo < 0 ? 'text-alert' : ''}">
+			{rupiah(totalSaldo)}
 		</div>
-		<div
-			class="flex items-center gap-3 rounded-xl bg-lowest p-4 shadow-[0_4px_20px_-2px_rgba(37,99,235,0.08)]"
-		>
-			<div
-				class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-expense-soft text-expense-deep"
-			>
-				<span class="material-symbols-outlined text-2xl">arrow_upward</span>
-			</div>
-			<div class="min-w-0">
-				<span class="block text-xs text-on-variant">Total Keluar (Bulan Ini)</span>
-				<strong class="block truncate text-lg font-semibold text-error">{rupiah(statKeluar)}</strong>
-			</div>
-		</div>
-	</div>
+		<p class="mt-1.5 text-[12px] text-ink-3">{dompet.length} dompet</p>
+	</section>
 
-	<section
-		id="form-transaksi"
-		class="scroll-mt-20 rounded-2xl bg-lowest p-4 shadow-[0_4px_20px_-2px_rgba(37,99,235,0.08)] md:p-6"
-	>
-		<div class="mb-4 flex items-center justify-between">
-			<div class="flex items-center gap-2">
-				<div
-					class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-bright/10 text-primary"
-				>
-					<span class="material-symbols-outlined text-lg">edit_note</span>
-				</div>
-				<h2 class="text-lg font-semibold">{editId === null ? 'Form Pencatatan Transaksi' : 'Ubah Transaksi'}</h2>
-			</div>
-			<span class="rounded-full bg-primary-bright/10 px-2.5 py-1 text-xs font-medium text-primary">
-				{editId === null ? 'Real-time Validation' : 'Mode Ubah'}
-			</span>
+	<!-- Dua angka bulan ini. Kata Masuk dan Keluar sudah tertulis pada label. -->
+	<section class="mt-3 grid grid-cols-2 gap-3">
+		<div class="card p-4">
+			<p class="label">Masuk bulan ini</p>
+			<p class="money mt-1 text-[19px] font-extrabold text-accent-ink">{rupiah(statMasuk)}</p>
 		</div>
-		<form onsubmit={simpan} class="flex flex-col gap-4">
-			<div class="flex gap-1 rounded-xl bg-surface-container p-1" role="group" aria-label="Tipe transaksi">
+		<div class="card p-4">
+			<p class="label">Keluar bulan ini</p>
+			<p class="money mt-1 text-[19px] font-extrabold">{rupiah(statKeluar)}</p>
+		</div>
+	</section>
+
+	<!-- Form. Satu kartu putih, isi turun ke bawah. -->
+	<section id="form-transaksi" class="mt-8 scroll-mt-20">
+		<div class="flex items-center justify-between gap-3">
+			<h2 class="head">{editId === null ? 'Catat transaksi' : 'Ubah transaksi'}</h2>
+			{#if editId !== null}
+				<span class="chip chip-accent shrink-0">Sedang diubah</span>
+			{/if}
+		</div>
+
+		<form onsubmit={simpan} class="card mt-3 flex flex-col gap-4 p-4 md:p-5">
+			{#if dompet.length === 0}
+				<p class="notice notice-quiet">
+					Belum ada dompet. Tambahkan dompet terlebih dahulu sebelum mencatat transaksi.
+				</p>
+			{/if}
+
+			<!-- Tipe transaksi: dua kata, aktif filled hijau. -->
+			<div class="grid grid-cols-2 gap-2" role="group" aria-label="Tipe transaksi">
 				<button
 					type="button"
 					onclick={() => gantiTipe('keluar')}
-					class="flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-sm font-semibold transition {tipe ===
-					'keluar'
-						? 'bg-expense text-on-primary shadow-sm'
-						: 'text-on-variant'}"
+					aria-pressed={tipe === 'keluar'}
+					class="btn !px-2 text-sm {tipe === 'keluar' ? 'btn-primary' : ''}"
 				>
-					<span class="material-symbols-outlined text-lg">remove</span>
-					<span>Pengeluaran (Keluar)</span>
+					Keluar
 				</button>
 				<button
 					type="button"
 					onclick={() => gantiTipe('masuk')}
-					class="flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-sm font-semibold transition {tipe ===
-					'masuk'
-						? 'bg-income text-on-primary shadow-sm'
-						: 'text-on-variant'}"
+					aria-pressed={tipe === 'masuk'}
+					class="btn !px-2 text-sm {tipe === 'masuk' ? 'btn-primary' : ''}"
 				>
-					<span class="material-symbols-outlined text-lg">add</span>
-					<span>Pemasukan (Masuk)</span>
+					Masuk
 				</button>
 			</div>
+
 			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 				<div>
-					<label for="trx-tanggal" class="mb-1 block text-sm font-medium text-on-variant">
-						Tanggal Transaksi
-					</label>
-					<input
-						id="trx-tanggal"
-						type="date"
-						bind:value={tanggal}
-						required
-						class="w-full rounded-xl bg-surface-low px-4 py-2.5 text-on-surface outline-none transition focus:ring-2 focus:ring-primary"
-					/>
+					<label for="trx-tanggal" class="label block">Tanggal</label>
+					<input id="trx-tanggal" type="date" bind:value={tanggal} required class="input mt-1.5" />
 				</div>
 				<div>
-					<label for="trx-dompet" class="mb-1 block text-sm font-medium text-on-variant">
-						Pilih Dompet / Akun
-					</label>
-					<select
-						id="trx-dompet"
-						bind:value={id_dompet}
-						required
-						class="w-full rounded-xl bg-surface-low px-4 py-2.5 text-on-surface outline-none transition focus:ring-2 focus:ring-primary"
-					>
+					<label for="trx-dompet" class="label block">Dompet</label>
+					<select id="trx-dompet" bind:value={id_dompet} required class="input mt-1.5">
 						<option value={null} disabled>Pilih dompet</option>
 						{#each dompet as d (d.id_dompet)}
-							<option value={d.id_dompet}>{d.nama_dompet} (Saldo: {rupiah(d.saldo)})</option>
+							<option value={d.id_dompet}>{d.nama_dompet} · {rupiah(d.saldo)}</option>
 						{/each}
 					</select>
 					{#if dompetAktif}
-						<p class="mt-1 text-xs text-on-variant">
-							Saldo tersedia: <span class="font-medium text-on-surface">{rupiah(dompetAktif.saldo)}</span>
-						</p>
+						<div class="mt-1.5 flex items-center justify-between gap-3">
+							<span class="label">Saldo dompet ini</span>
+							<span class="flex items-center gap-2">
+								{#if dompetAktif.saldo < 0}
+									<span class="chip chip-alert">Minus</span>
+								{/if}
+								<span class="money text-sm font-bold {dompetAktif.saldo < 0 ? 'text-alert' : ''}">
+									{rupiah(dompetAktif.saldo)}
+								</span>
+							</span>
+						</div>
 					{/if}
 				</div>
 			</div>
+
 			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 				<div>
-					<label for="trx-kategori" class="mb-1 block text-sm font-medium text-on-variant">
-						Kategori
-					</label>
-					<select
-						id="trx-kategori"
-						bind:value={id_kategori}
-						required
-						class="w-full rounded-xl bg-surface-low px-4 py-2.5 text-on-surface outline-none transition focus:ring-2 focus:ring-primary"
-					>
+					<label for="trx-kategori" class="label block">Kategori</label>
+					<select id="trx-kategori" bind:value={id_kategori} required class="input mt-1.5">
 						<option value={null} disabled>Pilih kategori</option>
 						{#each kategoriAktif as k (k.id)}
 							<option value={k.id}>{k.nama}</option>
 						{/each}
 					</select>
+					{#if kategoriAktif.length === 0}
+						<p class="label mt-1.5">Belum ada kategori untuk tipe ini.</p>
+					{/if}
 				</div>
 				<div>
-					<label for="trx-jumlah" class="mb-1 block text-sm font-medium text-on-variant">
-						Jumlah (Rp)
-					</label>
-					<div class="relative flex items-center">
-						<span class="absolute left-4 font-medium text-on-variant">Rp</span>
+					<label for="trx-jumlah" class="label block">Jumlah (Rp)</label>
+					<div class="relative mt-1.5">
+						<span
+							class="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-sm font-semibold text-ink-3"
+							aria-hidden="true"
+						>
+							Rp
+						</span>
 						<RupiahInput
 							id="trx-jumlah"
 							bind:value={jumlah}
 							placeholder="Contoh: 150.000"
 							required
-							class="w-full rounded-xl bg-surface-low py-2.5 pr-4 pl-11 text-on-surface outline-none transition focus:ring-2 focus:ring-primary"
+							class="input money !pl-9"
 						/>
 					</div>
+					<!-- Peringatan saldo: kata yang jelas, menempel pada nominal. -->
 					{#if saldoKurang}
-						<p class="mt-1 flex items-center gap-1 text-xs font-medium text-error">
-							<span class="material-symbols-outlined text-base">error</span>
-							<span>Saldo dompet tidak mencukupi untuk transaksi ini!</span>
-						</p>
+						<div class="notice notice-alert mt-2" role="alert">
+							<p class="font-bold">Saldo dompet tidak mencukupi</p>
+							<p class="mt-0.5">
+								Saldo dompet akan menjadi minus setelah transaksi ini disimpan.
+							</p>
+						</div>
 					{/if}
 				</div>
 			</div>
+
 			<div>
-				<label for="trx-catatan" class="mb-1 block text-sm font-medium text-on-variant">
-					Catatan Tambahan (Opsional)
-				</label>
+				<label for="trx-catatan" class="label block">Catatan (opsional)</label>
 				<input
 					id="trx-catatan"
 					bind:value={catatan}
-					placeholder="Misal: Belanja sayur segar di pasar tradisional"
+					placeholder="Misal: Belanja sayur di pasar"
 					maxlength="200"
-					class="w-full rounded-xl bg-surface-low px-4 py-2.5 text-on-surface outline-none transition focus:ring-2 focus:ring-primary"
+					class="input mt-1.5"
 				/>
 			</div>
+
 			{#if galatForm}
-				<p role="alert" class="flex items-center gap-1.5 text-sm font-medium text-error">
-					<span class="material-symbols-outlined text-base">error</span>
-					{galatForm}
-				</p>
+				<p class="notice notice-alert" role="alert">{galatForm}</p>
 			{/if}
-			<div class="flex justify-end gap-2 pt-1">
+
+			<!-- Aksi utama di ujung form, bukan di tepi atas halaman. -->
+			<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
 				{#if editId !== null}
-					<button
-						type="button"
-						onclick={batalUbah}
-						disabled={menyimpan}
-						class="flex w-full items-center justify-center gap-2 rounded-xl bg-surface-container px-6 py-3 text-sm font-medium transition hover:bg-surface-high disabled:opacity-60 md:w-auto"
-					>
-						<span class="material-symbols-outlined text-xl">close</span>
-						<span>Batal</span>
+					<button type="button" onclick={batalUbah} disabled={menyimpan} class="btn btn-ghost !min-h-11 w-full sm:w-auto">
+						Batal
 					</button>
 				{/if}
-				<button
-					type="submit"
-					disabled={menyimpan}
-					class="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-medium text-on-primary shadow-md transition hover:opacity-95 active:scale-95 disabled:opacity-60 md:w-auto"
-				>
-					<span class="material-symbols-outlined text-xl">save</span>
-					<span>
-						{menyimpan ? 'Menyimpan…' : editId === null ? 'Simpan Transaksi' : 'Simpan Perubahan'}
-					</span>
+				<button type="submit" disabled={menyimpan} class="btn btn-primary !min-h-11 w-full sm:w-auto">
+					{menyimpan ? 'Menyimpan…' : editId === null ? 'Simpan transaksi' : 'Simpan perubahan'}
 				</button>
 			</div>
 		</form>
 	</section>
 
-	<section class="rounded-2xl bg-lowest p-4 shadow-[0_4px_20px_-2px_rgba(37,99,235,0.08)] md:p-6">
-		<div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-			<div class="flex items-center gap-2">
-				<div
-					class="flex h-8 w-8 items-center justify-center rounded-full bg-income-soft text-income-deep"
-				>
-					<span class="material-symbols-outlined text-lg">filter_list</span>
-				</div>
-				<h2 class="text-lg font-semibold">Daftar Transaksi</h2>
-			</div>
-			<div class="flex flex-wrap items-center gap-2">
-				<label class="flex items-center gap-1.5 rounded-xl bg-surface-low px-3 py-1.5 text-xs">
-					<span class="text-on-variant">Dari:</span>
-					<input type="date" bind:value={dari} class="bg-transparent text-on-surface outline-none" />
-				</label>
-				<label class="flex items-center gap-1.5 rounded-xl bg-surface-low px-3 py-1.5 text-xs">
-					<span class="text-on-variant">Sampai:</span>
-					<input type="date" bind:value={sampai} class="bg-transparent text-on-surface outline-none" />
-				</label>
-				<select
-					bind:value={filterTipe}
-					aria-label="Filter tipe"
-					class="rounded-xl bg-surface-low px-4 py-1.5 text-sm text-on-surface outline-none"
-				>
-					<option value="">Semua Tipe</option>
-					<option value="masuk">Masuk Saja</option>
-					<option value="keluar">Keluar Saja</option>
-				</select>
-			<button
-				type="button"
-				onclick={() => terapkanFilter()}
-				class="rounded-xl bg-primary px-4 py-1.5 text-sm font-medium text-on-primary transition hover:opacity-95"
-			>
-				Terapkan
-			</button>
-			<label
-				class="flex min-w-52 flex-1 items-center gap-1.5 rounded-xl bg-surface-low px-3 py-1.5 text-xs sm:flex-none"
-			>
-				<span class="material-symbols-outlined text-base text-on-variant">search</span>
-				<input
-					type="search"
-					bind:value={cari}
-					placeholder="Cari catatan, kategori, nominal…"
-					aria-label="Cari transaksi"
-					onkeydown={(e) => {
-						if (e.key === 'Enter') {
-							e.preventDefault();
-							terapkanFilter();
-						}
-					}}
-					class="w-full bg-transparent text-sm text-on-surface outline-none placeholder:text-on-variant sm:w-44"
-				/>
-			</label>
+	<!-- Riwayat: penyaring di kartu, lalu daftar di kartu lain. -->
+	<section class="mt-8">
+		<div class="flex items-center justify-between gap-3">
+			<h2 class="head">Daftar transaksi</h2>
+			<span class="chip chip-quiet shrink-0">{daftar.length} transaksi</span>
 		</div>
+
+		<div class="card mt-3 p-4">
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+				<div>
+					<label for="trx-dari" class="label block">Dari</label>
+					<input id="trx-dari" type="date" bind:value={dari} class="input mt-1.5" />
+				</div>
+				<div>
+					<label for="trx-sampai" class="label block">Sampai</label>
+					<input id="trx-sampai" type="date" bind:value={sampai} class="input mt-1.5" />
+				</div>
+				<div>
+					<label for="trx-filter-tipe" class="label block">Tipe</label>
+					<select id="trx-filter-tipe" bind:value={filterTipe} class="input mt-1.5">
+						<option value="">Semua tipe</option>
+						<option value="masuk">Masuk saja</option>
+						<option value="keluar">Keluar saja</option>
+					</select>
+				</div>
+				<div>
+					<label for="trx-cari" class="label block">Cari</label>
+					<input
+						id="trx-cari"
+						type="search"
+						bind:value={cari}
+						placeholder="Catatan, kategori, nominal"
+						onkeydown={(e) => {
+							if (e.key === 'Enter') {
+								e.preventDefault();
+								terapkanFilter();
+							}
+						}}
+						class="input mt-1.5"
+					/>
+				</div>
+			</div>
+
+			<div class="mt-3">
+				<button
+					type="button"
+					onclick={() => terapkanFilter()}
+					disabled={memuat}
+					class="btn btn-primary w-full sm:w-auto"
+				>
+					{memuat ? 'Memproses…' : 'Terapkan'}
+				</button>
+			</div>
 		</div>
 
 		{#if galat}
-			<p role="alert" class="py-2 text-sm font-medium text-error">{galat}</p>
-		{:else if memuat}
-			<p class="py-2 text-sm text-on-variant">Memuat transaksi…</p>
-		{:else if daftar.length === 0}
-			<div class="py-12 text-center">
-				<div
-					class="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-surface-container text-on-variant"
+			<div class="notice notice-alert mt-4 flex items-center justify-between gap-3" role="alert">
+				<span>{galat}</span>
+				<button
+					type="button"
+					onclick={() => terapkanFilter()}
+					disabled={memuat}
+					class="btn btn-ghost !min-h-11 shrink-0 !px-3 text-[13px]"
 				>
-					<span class="material-symbols-outlined text-4xl">receipt_long</span>
+					Coba lagi
+				</button>
+			</div>
+		{/if}
+
+		{#if galatHapus}
+			<p class="notice notice-alert mt-4" role="alert">{galatHapus}</p>
+		{/if}
+
+		{#if memuat && daftar.length === 0}
+			<div class="card mt-4 p-5" role="status">
+				<p class="label">Memuat transaksi…</p>
+				<div class="mt-3 flex flex-col gap-3" aria-hidden="true">
+					<div class="h-3 w-2/3 animate-pulse rounded-full bg-sunk"></div>
+					<div class="h-3 w-1/2 animate-pulse rounded-full bg-sunk"></div>
+					<div class="h-3 w-3/5 animate-pulse rounded-full bg-sunk"></div>
 				</div>
-				<h3 class="text-lg font-semibold">Tidak ada transaksi ditemukan</h3>
-				<p class="mt-1 text-sm text-on-variant">Coba ubah rentang tanggal atau filter tipe transaksi Anda.</p>
+			</div>
+		{:else if daftar.length === 0}
+			<div class="card mt-4 p-5">
+				<p class="text-[15px] font-bold">Belum ada transaksi</p>
+				<p class="mt-1.5 text-sm leading-relaxed text-ink-2">
+					Belum ada transaksi yang cocok dengan filter. Ubah rentang tanggal atau tipe, lalu tekan Terapkan.
+				</p>
+				<button type="button" onclick={catatBaru} class="btn btn-primary mt-4 w-full sm:w-auto">
+					Catat transaksi
+				</button>
 			</div>
 		{:else}
-			{#if galatHapus}
-				<p role="alert" class="mb-2 text-sm font-medium text-error">{galatHapus}</p>
-			{/if}
-			<div class="flex flex-col gap-3">
+			<div class="card rows mt-4 px-4 md:px-5">
 				{#each daftar as t (t.id)}
-					<div
-						class="flex flex-col gap-3 rounded-xl bg-surface-low p-3 transition hover:bg-surface-container sm:flex-row sm:items-center sm:justify-between"
-					>
-						<div class="flex items-center gap-3">
-							<div
-								class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl {t.tipe ===
-								'masuk'
-									? 'bg-income-soft text-income-deep'
-									: 'bg-expense-soft text-expense-deep'}"
-							>
-								<span class="material-symbols-outlined text-2xl">
-									{t.tipe === 'masuk' ? 'arrow_downward' : 'arrow_upward'}
-								</span>
-							</div>
-							<div class="min-w-0">
-								<strong class="text-base">{t.kategori}</strong>
-								<span
-									class="rounded-full px-2 py-0.5 text-xs font-medium {t.tipe === 'masuk'
-										? 'bg-income-soft/50 text-income'
-										: 'bg-expense-soft/50 text-error'}"
-								>
-									{t.tipe === 'masuk' ? 'Masuk' : 'Keluar'}
-								</span>
-								<p class="mt-0.5 text-xs text-on-variant">
-									{t.dompet} • {formatTanggal(t.tanggal)} • {t.pencatat}
+					<div class="row flex-col !items-stretch !gap-2">
+						<div class="flex w-full items-start gap-3">
+							<div class="min-w-0 flex-1">
+								<p class="truncate text-sm font-semibold">{t.kategori}</p>
+								<p class="mt-0.5 text-[12px] text-ink-3">
+									{formatTanggal(t.tanggal)} · {t.dompet} · {t.pencatat}
 								</p>
 								{#if t.catatan}
-									<p class="mt-0.5 truncate text-xs text-on-variant">{t.catatan}</p>
+									<p class="mt-1 text-[12px] leading-relaxed text-ink-2">{t.catatan}</p>
 								{/if}
 							</div>
+							<span class="amount flex shrink-0 flex-col items-end gap-1">
+								<span class="money text-sm font-bold {t.tipe === 'masuk' ? 'text-accent-ink' : ''}">
+									{rupiah(t.jumlah)}
+								</span>
+								<span class="chip {t.tipe === 'masuk' ? 'chip-accent' : 'chip-quiet'}">
+									{t.tipe === 'masuk' ? 'Masuk' : 'Keluar'}
+								</span>
+							</span>
 						</div>
-						<div class="flex items-center justify-between gap-4 sm:w-auto sm:justify-end">
-							<strong class="text-base {t.tipe === 'masuk' ? 'text-income' : 'text-error'}">
-								{t.tipe === 'masuk' ? '+' : '−'}{rupiah(t.jumlah)}
-							</strong>
-							<div class="relative">
-								{#if hapusId === t.id}
-									<div
-										class="flex items-center gap-2 rounded-xl border border-surface-container bg-lowest p-2 shadow-xl"
-									>
-										<span class="text-xs font-medium">Hapus item?</span>
-										<button
-											type="button"
-											disabled={menghapus}
-											onclick={() => hapus(t.id)}
-											class="rounded-lg bg-error px-2.5 py-1 text-xs font-medium text-on-primary disabled:opacity-60"
-										>
-											{menghapus ? 'Menghapus…' : 'Ya'}
-										</button>
-										<button
-											type="button"
-											disabled={menghapus}
-											onclick={() => (hapusId = null)}
-											class="rounded-lg bg-surface-container px-2.5 py-1 text-xs"
-										>
-											Batal
-										</button>
-									</div>
-								{:else}
-									<div class="flex items-center gap-1.5">
-										<button
-											type="button"
-											onclick={() => mulaiUbah(t)}
-											aria-label={`Ubah transaksi ${t.kategori} ${rupiah(t.jumlah)}`}
-											class="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-container text-on-variant transition hover:bg-surface-high"
-										>
-											<span class="material-symbols-outlined text-xl">edit</span>
-										</button>
-										<button
-											type="button"
-											onclick={() => (hapusId = t.id)}
-											aria-label={`Hapus transaksi ${t.kategori} ${rupiah(t.jumlah)}`}
-											class="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-container text-on-variant transition hover:bg-surface-high"
-										>
-											<span class="material-symbols-outlined text-xl">delete</span>
-										</button>
-									</div>
-								{/if}
-							</div>
+
+						<!-- Aksi baris: ubah, dan hapus dua ketukan. -->
+						<div class="flex flex-wrap items-center gap-1.5">
+							{#if editId === t.id}
+								<span class="chip chip-accent">Sedang diubah</span>
+							{/if}
+							<button
+								type="button"
+								onclick={() => mulaiUbah(t)}
+								aria-label="Ubah transaksi {t.kategori} {rupiah(t.jumlah)}"
+								class="btn btn-ghost !min-h-11 !px-3 text-[13px]"
+							>
+								Ubah
+							</button>
+							{#if hapusId === t.id}
+								<span class="text-[13px] text-ink-2">Hapus transaksi ini?</span>
+								<button
+									type="button"
+									disabled={menghapus}
+									onclick={() => hapus(t.id)}
+									class="btn btn-danger !min-h-11 !px-3 text-[13px]"
+								>
+									{menghapus ? 'Menghapus…' : 'Ya, hapus'}
+								</button>
+								<button
+									type="button"
+									disabled={menghapus}
+									onclick={() => (hapusId = null)}
+									class="btn btn-ghost !min-h-11 !px-3 text-[13px]"
+								>
+									Batal
+								</button>
+							{:else}
+								<button
+									type="button"
+									onclick={() => (hapusId = t.id)}
+									aria-label="Hapus transaksi {t.kategori} {rupiah(t.jumlah)}"
+									class="btn btn-ghost !min-h-11 !px-3 text-[13px]"
+								>
+									Hapus
+								</button>
+							{/if}
 						</div>
 					</div>
 				{/each}
 			</div>
+
 			{#if adaLagi}
 				<button
 					type="button"
 					onclick={() => terapkanFilter(true)}
-					class="mt-3 w-full rounded-xl bg-surface-container px-4 py-2.5 text-sm font-medium text-on-surface transition hover:bg-surface-high sm:w-auto"
+					disabled={memuat}
+					class="btn mt-3 w-full"
 				>
-					Muat lebih banyak
+					{memuat ? 'Memuat…' : 'Muat lebih banyak'}
 				</button>
 			{/if}
 		{/if}

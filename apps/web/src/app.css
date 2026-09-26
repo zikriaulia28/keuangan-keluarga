@@ -1,32 +1,296 @@
 @import 'tailwindcss';
 
+/* ============================================================
+   KARTU BERSIH
+   Warm off-white ground, white cards with one soft shadow, ONE
+   brand colour (deep green), alert red only for destructive and
+   over-budget. No ruled paper, no mono figures, no beads, no icon
+   glyphs. Money is a sans with tabular figures, right-aligned and
+   bold. Mobile-first: 390px is the primary frame.
+   ============================================================ */
+
 @theme {
-  --color-surface: #f7f9fb;
-  --color-surface-low: #f2f4f6;
-  --color-surface-container: #eceef0;
-  --color-surface-high: #e6e8ea;
-  --color-lowest: #ffffff;
-  --color-on-surface: #191c1e;
-  --color-on-variant: #434655;
-  --color-outline: #737686;
-  --color-outline-variant: #c3c6d7;
-  --color-primary: #004ac6;
-  --color-primary-bright: #2563eb;
-  --color-primary-container: #2563eb;
-  --color-on-primary: #ffffff;
-  --color-on-primary-container: #eeefff;
-  --color-income: #10b981;
-  --color-income-deep: #00714d;
-  --color-income-soft: #6cf8bb;
-  --color-expense: #ef4444;
-  --color-expense-deep: #ab0b1c;
-  --color-expense-soft: #ffdad7;
-  --color-error: #ba1a1a;
-  --font-sans: 'Inter', system-ui, sans-serif;
+  /* Ground — warm, never grey-blue. */
+  --color-ground: #f6f6f4;
+  --color-card: #ffffff;
+  --color-sunk: #f0f0ed;
+
+  /* Hairlines exist only to separate rows inside a card. */
+  --color-line: #e8e8e4;
+
+  /* Text — near-black, warm. */
+  --color-ink: #17181a;
+  --color-ink-2: #5c5e63;
+  --color-ink-3: #767880;
+
+  /* ONE brand colour. */
+  --color-accent: #0e7c55;
+  --color-accent-ink: #0a5c3f;
+  --color-accent-soft: #e6f4ee;
+
+  /* Alert — destructive actions and over-budget only. */
+  --color-alert: #c23b22;
+  --color-alert-soft: #fbece8;
+
+  --font-sans: 'Manrope', system-ui, -apple-system, sans-serif;
 }
 
 body {
-  background: var(--color-surface);
-  color: var(--color-on-surface);
+  background: var(--color-ground);
+  color: var(--color-ink);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- surfaces ---------- */
+
+/* One soft shadow, offset and blurred. No borders on cards. */
+.card {
+  background: var(--color-card);
+  border-radius: 1rem;
+  box-shadow:
+    0 1px 2px rgba(23, 24, 26, 0.04),
+    0 8px 24px -12px rgba(23, 24, 26, 0.12);
+}
+
+/* ---------- type ---------- */
+
+/* Money: same family as everything else, but tabular and bold. */
+.money {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.015em;
+}
+
+/* Small label. Sentence case — not tracked uppercase, which reads as paperwork. */
+.label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink-3);
+}
+
+/* Section heading. */
+.head {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Big number. One weight step, no mono, no monospace costume. */
+.figure {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+/* Literal status. A word, never colour alone. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.chip-accent {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-ink);
+}
+.chip-quiet {
+  background: var(--color-sunk);
+  color: var(--color-ink-2);
+}
+.chip-alert {
+  background: var(--color-alert-soft);
+  color: var(--color-alert);
+}
+
+/* ---------- controls ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px; /* thumb zone */
+  padding: 0 18px;
+  border: 0;
+  border-radius: 0.75rem;
+  background: var(--color-sunk);
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 120ms ease-out, background 120ms ease-out;
+}
+.btn:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--color-accent);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-accent-ink);
+  filter: none;
+}
+.btn-danger {
+  background: var(--color-alert-soft);
+  color: var(--color-alert);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--color-ink-2);
+  font-weight: 600;
+  min-height: 40px;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--color-sunk);
+  filter: none;
+}
+
+.input {
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 14px;
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  color: var(--color-ink);
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.input:hover {
+  border-color: #d8d8d3;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.input:disabled {
+  background: var(--color-sunk);
+  color: var(--color-ink-3);
+}
+
+/* ---------- list rows ---------- */
+
+/* Separators are hairlines between rows, never boxes around them. */
+.rows > * + * {
+  border-top: 1px solid var(--color-line);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 12px 0;
+}
+.amount {
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Flat meter. Used only where a quantity against a limit is the point. */
+.meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-sunk);
+  overflow: hidden;
+}
+.meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-accent);
+  transition: width 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.meter > span[data-over='true'] {
+  background: var(--color-alert);
+}
+
+/* ---------- inline notice ---------- */
+
+.notice {
+  padding: 12px 14px;
+  border-radius: 0.75rem;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.notice-alert {
+  background: var(--color-alert-soft);
+  color: var(--color-alert);
+}
+.notice-quiet {
+  background: var(--color-sunk);
+  color: var(--color-ink-2);
+}
+
+/* ---------- browser surfaces ---------- */
+
+::selection {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-ink-3);
+  opacity: 1;
+}
+
+input:focus,
+textarea:focus {
+  caret-color: var(--color-accent);
+}
+
+.money input,
+input[type='date'] {
+  font-variant-numeric: tabular-nums;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cfcfca transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #cfcfca;
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter > span {
+    transition: none;
+  }
 }
