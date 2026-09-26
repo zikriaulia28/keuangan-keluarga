@@ -298,11 +298,11 @@
 			{/if}
 		</section>
 
-		<!-- Tiga angka pendukung. -->
+		<!-- Tiga angka pendukung. Warna mengikuti arah dana: hijau masuk, merah keluar. -->
 		<section class="mt-3 grid grid-cols-2 gap-3">
 			<div class="card p-4">
 				<p class="label">Masuk</p>
-				<p class="money mt-1 text-[19px] font-extrabold">{rupiah(ringkasan.masuk)}</p>
+				<p class="money mt-1 text-[19px] font-extrabold text-accent-ink">{rupiah(ringkasan.masuk)}</p>
 				{#if trenMasuk !== null}
 					<p class="money mt-0.5 text-[12px] text-ink-3">{formatPersen(trenMasuk)} dari bulan lalu</p>
 				{/if}
@@ -453,7 +453,12 @@
 									{u.arah === 'utang' ? 'Kita berutang' : 'Orang berutang'} · {tenor(u.jatuhTempo)}
 								</span>
 							</span>
-							<span class="amount money text-sm font-bold {lewatTempo ? 'text-alert' : ''}">
+							<!-- Utang = uang akan keluar, piutang = uang akan masuk. -->
+							<span
+								class="amount money text-sm font-bold {u.arah === 'utang'
+									? 'text-alert'
+									: 'text-accent-ink'} {lewatTempo ? 'font-extrabold' : ''}"
+							>
 								{rupiah(u.sisa)}
 							</span>
 						</a>

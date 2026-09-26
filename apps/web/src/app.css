@@ -21,7 +21,8 @@
   /* Text — near-black, warm. */
   --color-ink: #17181a;
   --color-ink-2: #5c5e63;
-  --color-ink-3: #767880;
+  /* 4.58:1 di atas ground dan 4.95:1 di atas kartu — aman untuk teks 13px. */
+  --color-ink-3: #6e7078;
 
   /* ONE brand colour. */
   --color-accent: #0e7c55;

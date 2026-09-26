@@ -277,16 +277,17 @@
     </section>
   {/if}
 
-  <!-- Dua angka utama. -->
+  <!-- Dua angka utama. Utang = uang akan keluar (merah), piutang = uang akan
+       masuk (hijau), jadi arah dana terbaca tanpa harus membaca labelnya. -->
   <section class="mt-3 grid grid-cols-2 gap-3">
     <div class="card p-4">
       <p class="label">Sisa utang aktif</p>
-      <p class="money mt-1 text-[19px] font-extrabold">{rupiah(totalUtang)}</p>
+      <p class="money mt-1 text-[19px] font-extrabold text-alert">{rupiah(totalUtang)}</p>
       <p class="money mt-0.5 text-[12px] text-ink-3">{countUtang} catatan berjalan</p>
     </div>
     <div class="card p-4">
       <p class="label">Sisa piutang aktif</p>
-      <p class="money mt-1 text-[19px] font-extrabold">{rupiah(totalPiutang)}</p>
+      <p class="money mt-1 text-[19px] font-extrabold text-accent-ink">{rupiah(totalPiutang)}</p>
       <p class="money mt-0.5 text-[12px] text-ink-3">{countPiutang} catatan berjalan</p>
     </div>
   </section>
@@ -444,7 +445,9 @@
                     ? 'text-ink-2'
                     : lewat
                       ? 'text-alert'
-                      : ''}"
+                      : isPiutang
+                        ? 'text-accent-ink'
+                        : 'text-alert'}"
                 >
                   {rupiah(u.sisa)}
                 </span>

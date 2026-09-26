@@ -43,6 +43,13 @@
 		return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 	}
 
+	// Bentuk pendek untuk ringkasan filter, mis. "1 Sep".
+	function formatTanggalPendek(t: string) {
+		const d = new Date(`${t}T00:00:00`);
+		if (Number.isNaN(d.getTime())) return t;
+		return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+	}
+
 	// Form tambah
 	let tanggal = $state(hariIni());
 	let tipe = $state<'masuk' | 'keluar'>('keluar');
@@ -58,6 +65,10 @@
 	let sampai = $state('');
 	let filterTipe = $state('');
 	let cari = $state('');
+	// Panel pencarian disembunyikan dulu: daftar transaksi adalah isi utama halaman
+	// ini, dan panel yang selalu terbuka mendorong daftar ke bawah lipatan.
+	// Halaman ini selalu memuat daftar tanpa filter, jadi kondisi awal selalu tertutup.
+	let filterBuka = $state(false);
 
 	let daftar = $state<Transaksi[]>(data.daftar);
 	let dompet = $state<Dompet[]>(data.dompet);
@@ -77,6 +88,21 @@
 	const totalSaldo = $derived(dompet.reduce((s, d) => s + d.saldo, 0));
 	const dompetAktif = $derived(dompet.find((d) => d.id_dompet === id_dompet) ?? null);
 	const transaksiAwal = $derived(editId === null ? null : (daftar.find((t) => t.id === editId) ?? null));
+
+	// Ringkasan filter untuk panel yang tertutup, supaya pengguna tidak lupa
+	// bahwa daftar sedang tersaring.
+	const filterDipakai = $derived(
+		[dari, sampai, filterTipe, cari.trim()].filter((x) => x !== '').length
+	);
+	const ringkasFilter = $derived.by(() => {
+		const bagian: string[] = [];
+		if (dari || sampai) {
+			bagian.push(`${dari ? formatTanggalPendek(dari) : 'awal'} – ${sampai ? formatTanggalPendek(sampai) : 'akhir'}`);
+		}
+		if (filterTipe) bagian.push(filterTipe === 'masuk' ? 'Masuk saja' : 'Keluar saja');
+		if (cari.trim()) bagian.push(`"${cari.trim()}"`);
+		return bagian.join(' · ');
+	});
 	// Saldo tampilan sudah termasuk baris lama, jadi keluarkan dulu efeknya sebelum menilai nilai baru.
 	const saldoKurang = $derived.by(() => {
 		if (jumlah === null || jumlah <= 0 || !dompetAktif || !id_dompet) return false;
@@ -137,6 +163,14 @@
 		} finally {
 			memuat = false;
 		}
+	}
+
+	async function bersihkanFilter() {
+		dari = '';
+		sampai = '';
+		filterTipe = '';
+		cari = '';
+		await terapkanFilter();
 	}
 
 	function gantiTipe(t: 'masuk' | 'keluar') {
@@ -255,7 +289,8 @@
 		<p class="mt-1.5 text-[12px] text-ink-3">{dompet.length} dompet</p>
 	</section>
 
-	<!-- Dua angka bulan ini. Kata Masuk dan Keluar sudah tertulis pada label. -->
+	<!-- Dua angka bulan ini. Kata Masuk dan Keluar sudah tertulis pada label,
+	     dan warnanya mengikuti arah dana: hijau untuk masuk, merah untuk keluar. -->
 	<section class="mt-3 grid grid-cols-2 gap-3">
 		<div class="card p-4">
 			<p class="label">Masuk bulan ini</p>
@@ -263,7 +298,7 @@
 		</div>
 		<div class="card p-4">
 			<p class="label">Keluar bulan ini</p>
-			<p class="money mt-1 text-[19px] font-extrabold">{rupiah(statKeluar)}</p>
+			<p class="money mt-1 text-[19px] font-extrabold text-alert">{rupiah(statKeluar)}</p>
 		</div>
 	</section>
 
@@ -410,52 +445,99 @@
 			<span class="chip chip-quiet shrink-0">{daftar.length} transaksi</span>
 		</div>
 
-		<div class="card mt-3 p-4">
-			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-				<div>
-					<label for="trx-dari" class="label block">Dari</label>
-					<input id="trx-dari" type="date" bind:value={dari} class="input mt-1.5" />
+		<div class="card mt-3 overflow-hidden">
+			{#if filterBuka}
+				<div class="flex items-center justify-between gap-3 border-b border-line px-4 pt-3 md:px-5">
+					<h2 class="head">Cari &amp; filter</h2>
+					<button
+						type="button"
+						onclick={() => (filterBuka = false)}
+						class="btn btn-ghost !min-h-11 shrink-0 !px-3 text-[13px]"
+					>
+						Sembunyikan
+					</button>
 				</div>
-				<div>
-					<label for="trx-sampai" class="label block">Sampai</label>
-					<input id="trx-sampai" type="date" bind:value={sampai} class="input mt-1.5" />
-				</div>
-				<div>
-					<label for="trx-filter-tipe" class="label block">Tipe</label>
-					<select id="trx-filter-tipe" bind:value={filterTipe} class="input mt-1.5">
-						<option value="">Semua tipe</option>
-						<option value="masuk">Masuk saja</option>
-						<option value="keluar">Keluar saja</option>
-					</select>
-				</div>
-				<div>
-					<label for="trx-cari" class="label block">Cari</label>
-					<input
-						id="trx-cari"
-						type="search"
-						bind:value={cari}
-						placeholder="Catatan, kategori, nominal"
-						onkeydown={(e) => {
-							if (e.key === 'Enter') {
-								e.preventDefault();
-								terapkanFilter();
-							}
-						}}
-						class="input mt-1.5"
-					/>
-				</div>
-			</div>
 
-			<div class="mt-3">
+				<div class="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 md:grid-cols-4 md:p-5">
+					<div>
+						<label for="trx-dari" class="label block">Dari</label>
+						<input id="trx-dari" type="date" bind:value={dari} class="input mt-1.5" />
+					</div>
+					<div>
+						<label for="trx-sampai" class="label block">Sampai</label>
+						<input id="trx-sampai" type="date" bind:value={sampai} class="input mt-1.5" />
+					</div>
+					<div>
+						<label for="trx-filter-tipe" class="label block">Tipe</label>
+						<select id="trx-filter-tipe" bind:value={filterTipe} class="input mt-1.5">
+							<option value="">Semua tipe</option>
+							<option value="masuk">Masuk saja</option>
+							<option value="keluar">Keluar saja</option>
+						</select>
+					</div>
+					<div>
+						<label for="trx-cari" class="label block">Cari</label>
+						<input
+							id="trx-cari"
+							type="search"
+							bind:value={cari}
+							placeholder="Catatan, kategori, nominal"
+							onkeydown={(e) => {
+								if (e.key === 'Enter') {
+									e.preventDefault();
+									terapkanFilter();
+								}
+							}}
+							class="input mt-1.5"
+						/>
+					</div>
+				</div>
+
+				<div class="flex flex-wrap items-center gap-2 px-4 pb-4 md:px-5 md:pb-5">
+					<button
+						type="button"
+						onclick={() => terapkanFilter()}
+						disabled={memuat}
+						class="btn btn-primary w-full sm:w-auto"
+					>
+						{memuat ? 'Memproses…' : 'Terapkan'}
+					</button>
+					{#if filterDipakai > 0}
+						<button
+							type="button"
+							onclick={bersihkanFilter}
+							disabled={memuat}
+							class="btn btn-ghost w-full sm:w-auto"
+						>
+							Bersihkan
+						</button>
+					{/if}
+				</div>
+			{:else}
 				<button
 					type="button"
-					onclick={() => terapkanFilter()}
-					disabled={memuat}
-					class="btn btn-primary w-full sm:w-auto"
+					onclick={() => (filterBuka = true)}
+					aria-expanded="false"
+					class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-sunk md:px-5"
 				>
-					{memuat ? 'Memproses…' : 'Terapkan'}
+					<span class="min-w-0 flex-1">
+						<span class="block text-[15px] font-bold">Cari &amp; filter</span>
+						{#if filterDipakai > 0}
+							<span class="mt-0.5 block truncate text-[13px] text-ink-2">
+								{ringkasFilter} · {daftar.length} transaksi
+							</span>
+						{:else}
+							<span class="mt-0.5 block text-[13px] text-ink-2">
+								Menampilkan {daftar.length} transaksi terbaru
+							</span>
+						{/if}
+					</span>
+					{#if filterDipakai > 0}
+						<span class="chip chip-accent shrink-0">{filterDipakai} aktif</span>
+					{/if}
+					<span class="shrink-0 text-lg leading-none text-ink-3" aria-hidden="true">&#8250;</span>
 				</button>
-			</div>
+			{/if}
 		</div>
 
 		{#if galat}
@@ -506,11 +588,13 @@
 									{formatTanggal(t.tanggal)} · {t.dompet} · {t.pencatat}
 								</p>
 								{#if t.catatan}
-									<p class="mt-1 text-[12px] leading-relaxed text-ink-2">{t.catatan}</p>
+									<p class="mt-1 truncate text-[12px] leading-relaxed text-ink-2" title={t.catatan}>
+										{t.catatan}
+									</p>
 								{/if}
 							</div>
 							<span class="amount flex shrink-0 flex-col items-end gap-1">
-								<span class="money text-sm font-bold {t.tipe === 'masuk' ? 'text-accent-ink' : ''}">
+								<span class="money text-sm font-bold {t.tipe === 'masuk' ? 'text-accent-ink' : 'text-alert'}">
 									{rupiah(t.jumlah)}
 								</span>
 								<span class="chip {t.tipe === 'masuk' ? 'chip-accent' : 'chip-quiet'}">
