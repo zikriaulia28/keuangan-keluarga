@@ -7,6 +7,7 @@
     id: number; arah: string; pihak: string; jumlah: number; terbayar: number;
     sisa: number; lunas: boolean; tanggal: string; jatuhTempo?: string | null; catatan?: string | null;
   };
+  type Dompet = { id_dompet: number; nama_dompet: string; saldo: number };
 
   let daftar = $state<Utang[]>([]);
   let semua = $state<Utang[]>([]);
@@ -30,6 +31,8 @@
   let bayarId = $state<number | null>(null);
   let bayarJumlah = $state<number | null>(null);
   let bayarTanggal = $state(new Date().toISOString().slice(0, 10));
+  let bayarDompet = $state('');
+  let dompets = $state<Dompet[]>([]);
 
   const totalUtang = $derived(semua.filter((u) => u.arah !== 'piutang' && !u.lunas).reduce((s, u) => s + u.sisa, 0));
   const countUtang = $derived(semua.filter((u) => u.arah !== 'piutang' && !u.lunas).length);
@@ -40,11 +43,10 @@
     const m = e instanceof Error ? e.message : baku;
     if (m === 'FORBIDDEN') return 'Akses ditolak.';
     if (m === 'NOT_FOUND') return 'Data tidak ditemukan.';
+    if (m === 'INSUFFICIENT_BALANCE') return 'Saldo dompet tidak cukup.';
+    if (m === 'INVALID_WALLET' || m === 'NO_WALLET') return 'Dompet tidak valid.';
+    if (m === 'OVERPAY') return 'Jumlah bayar melebihi sisa utang.';
     return m || baku;
-  }
-
-  function inisial(nama: string) {
-    return nama.trim().slice(0, 1).toUpperCase() || '?';
   }
 
   function tenor(jt?: string | null) {
@@ -73,12 +75,17 @@
       if (arahFilter) q.set('arah', arahFilter);
       if (statusFilter) q.set('status', statusFilter);
       const qs = q.toString();
-      const [list, all] = await Promise.all([
+      const [list, all, dom] = await Promise.all([
         api<Utang[]>(`/api/utang${qs ? `?${qs}` : ''}`),
-        api<Utang[]>('/api/utang').catch(() => [] as Utang[])
+        api<Utang[]>('/api/utang').catch(() => [] as Utang[]),
+        api<Dompet[]>('/api/dompet').catch(() => [] as Dompet[])
       ]);
       daftar = list;
       semua = all;
+      dompets = dom;
+      if (!dom.some((d) => String(d.id_dompet) === bayarDompet)) {
+        bayarDompet = dom.length > 0 ? String(dom[0].id_dompet) : '';
+      }
     } catch (e) {
       galat = pesan(e, 'Gagal memuat utang.');
     } finally {
@@ -130,10 +137,18 @@
       galatBayar = 'Isi jumlah bayar lebih dari 0.';
       return;
     }
+    if (dompets.length > 0 && !bayarDompet) {
+      galatBayar = 'Pilih dompet sumber dana.';
+      return;
+    }
     try {
       await api(`/api/utang/${id}/bayar`, {
         method: 'POST',
-        body: JSON.stringify({ jumlah: bayarJumlah, ...(bayarTanggal ? { tanggal: bayarTanggal } : {}) })
+        body: JSON.stringify({
+          jumlah: bayarJumlah,
+          ...(bayarTanggal ? { tanggal: bayarTanggal } : {}),
+          ...(bayarDompet ? { id_dompet: Number(bayarDompet) } : {})
+        })
       });
       bayarId = null;
       bayarJumlah = null;
@@ -159,111 +174,102 @@
   }
 </script>
 
-<div class="mx-auto w-full max-w-5xl px-4 pb-24 font-sans md:px-8">
-  <div class="mb-4 flex flex-col gap-1">
-    <h1 class="text-2xl font-bold text-on-surface">Catatan Utang & Piutang</h1>
-    <p class="text-sm text-on-variant">Kelola pinjaman keluarga, cicilan, dan piutang dengan transparan.</p>
-  </div>
+<div class="mx-auto w-full max-w-2xl md:max-w-4xl">
+  <h1 class="text-[26px] font-extrabold tracking-tight">Utang &amp; Piutang</h1>
+  <p class="mt-1.5 text-sm text-ink-2">Pinjaman dan piutang keluarga beserta cicilannya.</p>
 
   <button
+    type="button"
     onclick={() => (tambahBuka = !tambahBuka)}
-    class="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-medium text-on-primary shadow-sm transition-transform active:scale-95 hover:opacity-90"
+    aria-expanded={tambahBuka}
+    class="btn btn-primary mt-4 w-full sm:w-auto"
   >
-    <span class="material-symbols-outlined text-[20px]">{tambahBuka ? 'close' : 'add_circle'}</span>
-    <span>{tambahBuka ? 'Tutup Form' : 'Tambah Utang/Piutang'}</span>
+    {tambahBuka ? 'Tutup formulir' : 'Tambah utang atau piutang'}
   </button>
 
+  <!-- Formulir tambah. -->
   {#if tambahBuka}
-    <section class="mt-4 rounded-2xl bg-lowest p-6 shadow-sm">
-      <h2 class="mb-4 text-lg font-semibold text-on-surface">Tambah Utang atau Piutang</h2>
-      <form onsubmit={tambah} class="flex flex-col gap-4">
-        {#if galatForm}<p class="rounded-xl bg-expense-soft px-4 py-2 text-sm text-error">{galatForm}</p>{/if}
-        <div>
-          <span class="mb-1 block text-sm text-on-variant">Tipe Transaksi</span>
+    <section class="card mt-3 p-4 md:p-5">
+      <h2 class="head">Tambah utang atau piutang</h2>
+      <p class="mt-1.5 text-[13px] leading-relaxed text-ink-3">
+        Catat pihak, nominal, dan tanggal. Jatuh tempo boleh dikosongkan bila tidak ada tenggat.
+      </p>
+
+      <form onsubmit={tambah} class="mt-4 flex flex-col gap-3">
+        {#if galatForm}
+          <p class="notice notice-alert">{galatForm}</p>
+        {/if}
+
+        <div role="group" aria-label="Jenis arah">
+          <p class="label mb-2">Jenis arah</p>
           <div class="grid grid-cols-2 gap-2">
             <button
               type="button"
+              aria-pressed={arah === 'utang'}
               onclick={() => (arah = 'utang')}
-              class="rounded-xl border px-4 py-2.5 text-center text-sm font-medium {arah === 'utang'
-                ? 'border-primary bg-primary px-4 text-on-primary'
-                : 'border-outline text-on-variant'}"
+              class="btn {arah === 'utang' ? 'btn-primary' : ''}"
             >
-              Utang (Pinjam)
+              Utang
             </button>
             <button
               type="button"
+              aria-pressed={arah === 'piutang'}
               onclick={() => (arah = 'piutang')}
-              class="rounded-xl border px-4 py-2.5 text-center text-sm font-medium {arah === 'piutang'
-                ? 'border-primary bg-primary text-on-primary'
-                : 'border-outline text-on-variant'}"
+              class="btn {arah === 'piutang' ? 'btn-primary' : ''}"
             >
-              Piutang (Dipinjamkan)
+              Piutang
             </button>
           </div>
+          <p class="mt-2 text-[12px] leading-snug text-ink-3">
+            {arah === 'utang'
+              ? 'Kita berutang kepada pihak.'
+              : 'Orang berutang kepada kita.'}
+          </p>
         </div>
+
         <div>
-          <label for="ut-pihak" class="mb-1 block text-sm text-on-variant">Nama Pemberi / Peminjam</label>
+          <label for="ut-pihak" class="label mb-1.5 block">Pihak</label>
           <input
             id="ut-pihak"
             bind:value={pihak}
-            placeholder="Contoh: Toko Elektronik / Teman"
+            placeholder="Contoh: Toko Elektronik"
             required
-            class="w-full rounded-xl bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
+            class="input"
           />
         </div>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label for="ut-jumlah" class="mb-1 block text-sm text-on-variant">Total Nominal (Rp)</label>
+            <label for="ut-jumlah" class="label mb-1.5 block">Jumlah</label>
             <RupiahInput
               id="ut-jumlah"
               bind:value={jumlah}
               placeholder="1.000.000"
               required
-              class="w-full rounded-xl bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
+              class="input money"
             />
           </div>
           <div>
-            <label for="ut-tanggal" class="mb-1 block text-sm text-on-variant">Tanggal</label>
-            <input
-              id="ut-tanggal"
-              type="date"
-              bind:value={tanggal}
-              required
-              class="w-full rounded-xl bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
-            />
+            <label for="ut-tanggal" class="label mb-1.5 block">Tanggal</label>
+            <input id="ut-tanggal" type="date" bind:value={tanggal} required class="input" />
           </div>
         </div>
+
         <div>
-          <label for="ut-tempo" class="mb-1 block text-sm text-on-variant">Jatuh Tempo</label>
-          <input
-            id="ut-tempo"
-            type="date"
-            bind:value={jatuhTempo}
-            class="w-full rounded-xl bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
-          />
+          <label for="ut-tempo" class="label mb-1.5 block">Jatuh tempo (opsional)</label>
+          <input id="ut-tempo" type="date" bind:value={jatuhTempo} class="input" />
         </div>
+
         <div>
-          <label for="ut-catatan" class="mb-1 block text-sm text-on-variant">Catatan Tambahan</label>
-          <input
-            id="ut-catatan"
-            bind:value={catatan}
-            placeholder="Catatan opsional…"
-            class="w-full rounded-xl bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
-          />
+          <label for="ut-catatan" class="label mb-1.5 block">Catatan (opsional)</label>
+          <input id="ut-catatan" bind:value={catatan} placeholder="Keterangan singkat" class="input" />
         </div>
-        <div class="flex justify-end gap-2">
-          <button
-            type="button"
-            onclick={() => (tambahBuka = false)}
-            class="rounded-xl px-4 py-2 text-sm text-on-variant hover:bg-surface-container"
-          >
+
+        <div class="mt-1 flex gap-2">
+          <button type="button" onclick={() => (tambahBuka = false)} class="btn btn-ghost flex-1">
             Batal
           </button>
-          <button
-            type="submit"
-            disabled={menyimpan}
-            class="rounded-xl bg-primary px-6 py-2 text-sm font-medium text-on-primary shadow-sm disabled:opacity-60"
-          >
+          <button type="submit" disabled={menyimpan} class="btn btn-primary flex-1">
             {menyimpan ? 'Menyimpan…' : 'Simpan'}
           </button>
         </div>
@@ -271,200 +277,271 @@
     </section>
   {/if}
 
-  <div class="mt-4 grid grid-cols-2 gap-4">
-    <div class="flex flex-col justify-between rounded-xl bg-lowest p-4 shadow-sm">
-      <div class="mb-2 flex items-center justify-between">
-        <span class="text-xs font-medium text-on-variant">Total Utang Aktif</span>
-        <div class="flex h-8 w-8 items-center justify-center rounded-full bg-expense-soft text-expense-deep">
-          <span class="material-symbols-outlined text-[18px]">trending_down</span>
-        </div>
-      </div>
-      <span class="text-lg font-semibold text-expense">{rupiah(totalUtang)}</span>
-      <span class="mt-1 text-xs text-on-variant">{countUtang} pinjaman berjalan</span>
+  <!-- Dua angka utama. -->
+  <section class="mt-3 grid grid-cols-2 gap-3">
+    <div class="card p-4">
+      <p class="label">Sisa utang aktif</p>
+      <p class="money mt-1 text-[19px] font-extrabold">{rupiah(totalUtang)}</p>
+      <p class="money mt-0.5 text-[12px] text-ink-3">{countUtang} catatan berjalan</p>
     </div>
-    <div class="flex flex-col justify-between rounded-xl bg-lowest p-4 shadow-sm">
-      <div class="mb-2 flex items-center justify-between">
-        <span class="text-xs font-medium text-on-variant">Total Piutang Aktif</span>
-        <div class="flex h-8 w-8 items-center justify-center rounded-full bg-income-soft text-income-deep">
-          <span class="material-symbols-outlined text-[18px]">trending_up</span>
-        </div>
-      </div>
-      <span class="text-lg font-semibold text-income">{rupiah(totalPiutang)}</span>
-      <span class="mt-1 text-xs text-on-variant">{countPiutang} piutang berjalan</span>
+    <div class="card p-4">
+      <p class="label">Sisa piutang aktif</p>
+      <p class="money mt-1 text-[19px] font-extrabold">{rupiah(totalPiutang)}</p>
+      <p class="money mt-0.5 text-[12px] text-ink-3">{countPiutang} catatan berjalan</p>
     </div>
-  </div>
+  </section>
 
-  <div class="mt-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-    <div class="flex gap-1 overflow-x-auto rounded-xl bg-surface-high p-1">
-      {#each [['', 'Semua'], ['utang', 'Utang'], ['piutang', 'Piutang']] as [v, label]}
-        <button
-          onclick={() => gantiArah(v)}
-          class="rounded-lg px-4 py-1.5 text-sm font-medium transition-all {arahFilter === v
-            ? 'bg-lowest text-primary shadow-sm'
-            : 'text-on-variant'}"
-        >
-          {label}
-        </button>
-      {/each}
+  <!-- Filter arah dan status. -->
+  <section class="card mt-3 p-3 md:p-4">
+    <div role="group" aria-label="Filter arah">
+      <div class="flex items-baseline justify-between gap-3">
+        <p class="label">Arah</p>
+        <span class="label">{semua.length} catatan</span>
+      </div>
+      <div class="mt-2 grid grid-cols-3 gap-1">
+        {#each [['', 'Semua'], ['utang', 'Utang'], ['piutang', 'Piutang']] as [v, nama] (v)}
+          <button
+            type="button"
+            aria-pressed={arahFilter === v}
+            onclick={() => gantiArah(v)}
+            class="btn !px-2 {arahFilter === v ? 'btn-primary' : ''}"
+          >
+            {nama}
+            <span class="opacity-70">
+              {v === '' ? semua.length : v === 'piutang'
+                ? semua.filter((u) => u.arah === 'piutang').length
+                : semua.filter((u) => u.arah !== 'piutang').length}
+            </span>
+          </button>
+        {/each}
+      </div>
     </div>
-    <div class="flex gap-1 rounded-xl bg-surface-high p-1">
-      {#each [['aktif', 'Aktif'], ['lunas', 'Lunas'], ['', 'Semua']] as [v, label]}
-        <button
-          onclick={() => gantiStatus(v)}
-          class="rounded-lg px-4 py-1.5 text-sm font-medium transition-all {statusFilter === v
-            ? 'bg-lowest text-on-surface shadow-sm'
-            : 'text-on-variant'}"
-        >
-          {label}
-        </button>
-      {/each}
-    </div>
-  </div>
 
-  {#if memuat}
-    <div class="mt-4 flex flex-col gap-4">
-      {#each [1, 2] as _}
-        <div class="animate-pulse rounded-xl bg-lowest p-4 shadow-sm">
-          <div class="h-5 w-1/2 rounded bg-surface-container"></div>
-          <div class="mt-3 h-12 rounded-lg bg-surface-container"></div>
-        </div>
-      {/each}
+    <div role="group" aria-label="Filter status" class="mt-4">
+      <p class="label">Status</p>
+      <div class="mt-2 grid grid-cols-3 gap-1">
+        {#each [['aktif', 'Aktif'], ['lunas', 'Lunas'], ['', 'Semua']] as [v, nama] (v)}
+          <button
+            type="button"
+            aria-pressed={statusFilter === v}
+            onclick={() => gantiStatus(v)}
+            class="btn !px-2 {statusFilter === v ? 'btn-primary' : ''}"
+          >
+            {nama}
+            <span class="opacity-70">
+              {v === '' ? semua.length : v === 'lunas'
+                ? semua.filter((u) => u.lunas).length
+                : semua.filter((u) => !u.lunas).length}
+            </span>
+          </button>
+        {/each}
+      </div>
     </div>
-    <p class="mt-3 text-sm text-on-variant">Memuat…</p>
-  {:else}
-    {#if galat}<p class="mt-4 rounded-xl bg-expense-soft px-4 py-3 text-sm text-error">{galat}</p>{/if}
-    {#if galatBayar}<p class="mt-4 rounded-xl bg-expense-soft px-4 py-3 text-sm text-error">{galatBayar}</p>{/if}
-    {#if daftar.length === 0}
-      <div class="mt-4 flex flex-col items-center gap-2 rounded-xl bg-lowest p-8 text-center shadow-sm">
-        <span class="material-symbols-outlined text-[32px] text-outline">handshake</span>
-        <p class="font-medium text-on-surface">Tidak ada data</p>
-        <p class="text-sm text-on-variant">Belum ada catatan utang atau piutang pada filter ini.</p>
+  </section>
+
+  {#if galat}
+    <div class="notice notice-alert mt-3 flex items-center justify-between gap-3">
+      <span>{galat}</span>
+      <button type="button" onclick={muat} class="btn btn-ghost shrink-0 !min-h-9 !px-3">
+        Coba lagi
+      </button>
+    </div>
+  {/if}
+
+  {#if galatBayar && bayarId === null}
+    <p class="notice notice-alert mt-3">{galatBayar}</p>
+  {/if}
+
+  <!-- Daftar catatan. -->
+  <section class="mt-7">
+    <div class="flex items-baseline justify-between gap-3">
+      <h2 class="head">Catatan</h2>
+      <span class="label">{daftar.length} catatan</span>
+    </div>
+
+    {#if memuat}
+      <p class="label mt-3">Memuat…</p>
+      <div class="card rows mt-2 px-4 md:px-5" aria-busy="true">
+        {#each [1, 2, 3] as i (i)}
+          <div class="row flex-col !items-stretch !gap-2.5 motion-safe:animate-pulse">
+            <div class="h-4 w-1/3 rounded bg-sunk"></div>
+            <div class="h-3 w-1/2 rounded bg-sunk"></div>
+            <div class="h-3 w-full rounded bg-sunk"></div>
+          </div>
+        {/each}
+      </div>
+    {:else if daftar.length === 0}
+      <div class="card mt-3 p-5">
+        {#if semua.length === 0}
+          <p class="text-[15px] font-bold">Belum ada catatan</p>
+          <p class="mt-1.5 text-sm leading-relaxed text-ink-2">
+            Belum ada utang atau piutang yang tercatat. Tambahkan catatan pertama untuk mulai
+            melacak sisa pinjaman.
+          </p>
+          {#if !tambahBuka}
+            <button
+              type="button"
+              onclick={() => (tambahBuka = true)}
+              class="btn btn-primary mt-4 w-full sm:w-auto"
+            >
+              Tambah utang atau piutang
+            </button>
+          {/if}
+        {:else}
+          <p class="text-[15px] font-bold">Tidak ada catatan pada filter ini</p>
+          <p class="mt-1.5 text-sm leading-relaxed text-ink-2">
+            Ubah filter arah atau status untuk melihat catatan lain.
+          </p>
+        {/if}
       </div>
     {:else}
-      <div class="mt-4 flex flex-col gap-4">
-        {#each daftar as u}
+      <div class="card rows mt-3 px-4 md:px-5">
+        {#each daftar as u (u.id)}
           {@const isPiutang = u.arah === 'piutang'}
-          <div class="flex flex-col gap-4 rounded-xl bg-lowest p-4 shadow-sm {u.lunas ? 'opacity-80' : ''}">
-            <div class="flex items-start justify-between gap-2">
-              <div class="flex items-center gap-3">
-                <div
-                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg font-bold {u.lunas
-                    ? 'bg-surface-high text-on-variant'
-                    : isPiutang
-                      ? 'bg-income-soft text-income-deep'
-                      : 'bg-expense-soft text-expense-deep'}"
-                >
-                  {#if u.lunas}
-                    <span class="material-symbols-outlined text-[20px]">check_circle</span>
-                  {:else}
-                    {inisial(u.pihak)}
-                  {/if}
-                </div>
-                <div>
-                  <div class="flex flex-wrap items-center gap-2">
-                    <h3 class="font-semibold text-on-surface {u.lunas ? 'line-through' : ''}">{u.pihak}</h3>
-                    <span
-                      class="rounded-full px-2 py-0.5 text-xs font-medium {isPiutang
-                        ? 'bg-income-soft text-income-deep'
-                        : 'bg-expense-soft text-expense-deep'}"
-                    >
-                      {labelArah(u.arah)}
-                    </span>
-                    {#if u.lunas}
-                      <span class="flex items-center gap-1 rounded-full bg-income-soft px-2.5 py-0.5 text-xs font-bold text-income-deep">
-                        <span class="material-symbols-outlined text-[14px]">done_all</span> Lunas
-                      </span>
-                    {/if}
-                  </div>
-                  <p class="text-xs text-on-variant">
-                    {fmtTanggal(u.tanggal)}
-                    {#if u.jatuhTempo} · Jatuh tempo {fmtTanggal(u.jatuhTempo)} ({tenor(u.jatuhTempo)}){/if}
-                    {#if u.catatan} · {u.catatan}{/if}
-                  </p>
-                </div>
+          {@const tempo = tenor(u.jatuhTempo)}
+          {@const lewat = !u.lunas && tempo.startsWith('lewat')}
+          <div class="row flex-col !items-stretch !gap-2.5">
+            <div class="flex w-full flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="min-w-0 truncate text-[15px] font-bold">{u.pihak}</span>
+              <span class="chip chip-quiet">{labelArah(u.arah)}</span>
+              {#if u.lunas}
+                <span class="chip chip-accent">Lunas</span>
+              {/if}
+              {#if lewat}
+                <span class="chip chip-alert">Terlambat {tempo.slice(6)}</span>
+              {/if}
+            </div>
+
+            <p class="text-[12px] leading-snug {lewat ? 'font-semibold text-alert' : 'text-ink-3'}">
+              {fmtTanggal(u.tanggal)}
+              {#if u.jatuhTempo}
+                · Jatuh tempo {fmtTanggal(u.jatuhTempo)}
+              {/if}
+              {#if tempo && !lewat}
+                · {tempo}
+              {/if}
+            </p>
+
+            {#if u.catatan}
+              <p class="text-[12px] leading-snug text-ink-3">Catatan: {u.catatan}</p>
+            {/if}
+
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <span class="label block">Total</span>
+                <span class="amount money block text-[14px] font-bold">{rupiah(u.jumlah)}</span>
               </div>
-              <div class="flex shrink-0 items-center gap-1">
-                {#if !u.lunas}
-                  <button
-                    onclick={() => {
-                      bayarId = u.id;
-                      bayarJumlah = u.sisa;
-                      galatBayar = '';
-                    }}
-                    title={isPiutang ? 'Terima Cicilan' : 'Bayar Cicilan'}
-                    class="rounded-lg bg-primary p-2 text-on-primary transition-colors hover:opacity-90"
-                  >
-                    <span class="material-symbols-outlined text-[18px]">payments</span>
-                  </button>
-                {/if}
-                <button
-                  onclick={() => hapus(u.id)}
-                  title="Hapus"
-                  class="rounded-lg bg-surface-high p-2 text-on-variant transition-colors hover:text-expense"
+              <div>
+                <span class="label block">Terbayar</span>
+                <span class="amount money block text-[14px] font-bold text-ink-2">
+                  {rupiah(u.terbayar)}
+                </span>
+              </div>
+              <div>
+                <span class="label block">Sisa</span>
+                <span
+                  class="amount money block text-[14px] font-bold {u.lunas
+                    ? 'text-ink-2'
+                    : lewat
+                      ? 'text-alert'
+                      : ''}"
                 >
-                  <span class="material-symbols-outlined text-[18px]">delete</span>
-                </button>
+                  {rupiah(u.sisa)}
+                </span>
               </div>
             </div>
 
-            <div class="grid grid-cols-3 gap-2 rounded-lg bg-surface-container p-2 text-center">
-              <div>
-                <span class="block text-xs text-on-variant">Total</span>
-                <span class="text-sm font-medium text-on-surface">{rupiah(u.jumlah)}</span>
-              </div>
-              <div>
-                <span class="block text-xs text-on-variant">Terbayar</span>
-                <span class="text-sm font-medium text-income">{rupiah(u.terbayar)}</span>
-              </div>
-              <div>
-                <span class="block text-xs text-on-variant">Sisa</span>
-                <span class="text-sm font-bold {u.lunas ? 'text-on-variant' : 'text-expense'}">{rupiah(u.sisa)}</span>
-              </div>
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              {#if !u.lunas}
+                <button
+                  type="button"
+                  onclick={() => {
+                    bayarId = u.id;
+                    bayarJumlah = u.sisa;
+                    galatBayar = '';
+                  }}
+                  class="btn"
+                >
+                  {isPiutang ? 'Terima cicilan' : 'Bayar cicilan'}
+                </button>
+              {/if}
+              <button
+                type="button"
+                onclick={() => hapus(u.id)}
+                title="Hapus catatan"
+                class="btn btn-danger"
+              >
+                Hapus
+              </button>
             </div>
 
             {#if bayarId === u.id}
-              <div class="flex flex-col gap-2 rounded-lg border-l-2 border-primary bg-surface-low p-2">
-                <span class="text-xs font-medium text-on-surface">
-                  {isPiutang ? 'Form Terima Pembayaran Piutang' : 'Form Pembayaran Cicilan'}
-                </span>
-                <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <form
+                class="flex flex-col gap-3 rounded-xl bg-sunk p-3"
+                onsubmit={(e: SubmitEvent) => {
+                  e.preventDefault();
+                  void bayar(u.id);
+                }}
+              >
+                <div>
+                  <p class="text-[14px] font-bold">
+                    {isPiutang ? 'Terima cicilan' : 'Bayar cicilan'}
+                  </p>
+                  <p class="mt-0.5 text-[12px] text-ink-2">
+                    {isPiutang ? 'Sisa piutang' : 'Sisa utang'}
+                    <span class="money font-bold">{rupiah(u.sisa)}</span>
+                  </p>
+                </div>
+
+                {#if galatBayar}
+                  <p class="notice notice-alert">{galatBayar}</p>
+                {/if}
+
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label for="byr-jml-{u.id}" class="mb-1 block text-xs text-on-variant">
-                      {isPiutang ? 'Jumlah Diterima (Rp)' : 'Jumlah Bayar (Rp)'}
+                    <label for="byr-jml-{u.id}" class="label mb-1.5 block">
+                      {isPiutang ? 'Jumlah diterima' : 'Jumlah bayar'}
                     </label>
                     <RupiahInput
                       id="byr-jml-{u.id}"
                       bind:value={bayarJumlah}
                       placeholder="500.000"
-                      class="w-full rounded-lg bg-lowest px-3 py-2 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
+                      class="input money"
                     />
                   </div>
                   <div>
-                    <label for="byr-tgl-{u.id}" class="mb-1 block text-xs text-on-variant">Tanggal Bayar</label>
-                    <input
-                      id="byr-tgl-{u.id}"
-                      type="date"
-                      bind:value={bayarTanggal}
-                      class="w-full rounded-lg bg-lowest px-3 py-2 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
-                    />
+                    <label for="byr-tgl-{u.id}" class="label mb-1.5 block">Tanggal</label>
+                    <input id="byr-tgl-{u.id}" type="date" bind:value={bayarTanggal} class="input" />
                   </div>
+                  {#if dompets.length > 1}
+                    <div class="sm:col-span-2">
+                      <label for="byr-dom-{u.id}" class="label mb-1.5 block">
+                        Dompet {isPiutang ? 'tujuan' : 'sumber'}
+                      </label>
+                      <select id="byr-dom-{u.id}" bind:value={bayarDompet} class="input">
+                        {#each dompets as d (d.id_dompet)}
+                          <option value={String(d.id_dompet)}>
+                            {d.nama_dompet} (saldo {rupiah(d.saldo)})
+                          </option>
+                        {/each}
+                      </select>
+                    </div>
+                  {/if}
                 </div>
-                <div class="mt-1 flex justify-end gap-2">
-                  <button onclick={() => (bayarId = null)} class="rounded-lg px-4 py-1.5 text-sm text-on-variant hover:bg-surface-container">
+
+                <div class="flex flex-wrap items-center justify-end gap-2">
+                  <button type="button" onclick={() => (bayarId = null)} class="btn btn-ghost">
                     Batal
                   </button>
-                  <button
-                    onclick={() => bayar(u.id)}
-                    class="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-on-primary"
-                  >
-                    {isPiutang ? 'Simpan Penerimaan' : 'Simpan Pembayaran'}
+                  <button type="submit" class="btn btn-primary">
+                    {isPiutang ? 'Simpan penerimaan' : 'Simpan pembayaran'}
                   </button>
                 </div>
-              </div>
+              </form>
             {/if}
           </div>
         {/each}
       </div>
     {/if}
-  {/if}
+  </section>
 </div>
