@@ -7,11 +7,6 @@
 	type Kategori = { id: number; nama: string; tipe: string };
 	type Ringkasan = { anggaran: { kategori: string; batas: number; dipakai: number; lewat: boolean }[] };
 
-	const NAMA_BULAN = [
-		'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-		'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-	];
-
 	const sekarang = new Date();
 	let bulan = $state(`${sekarang.getFullYear()}-${String(sekarang.getMonth() + 1).padStart(2, '0')}`);
 	let daftar = $state<Anggaran[]>([]);
@@ -32,8 +27,10 @@
 		return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
 	}
 	function labelBulan(b: string) {
-		const [y, m] = b.split('-').map(Number);
-		return `${NAMA_BULAN[m - 1]} ${y}`;
+		return new Date(`${b}-01T00:00:00`).toLocaleDateString('id-ID', {
+			month: 'long',
+			year: 'numeric'
+		});
 	}
 	function pilih(b: string) {
 		if (b === bulan) return;

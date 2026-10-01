@@ -12,12 +12,6 @@
   type Dompet = { id?: number; id_dompet?: number; nama?: string; nama_dompet?: string; saldo: number };
   type Transaksi = { catatan: string; dompet: string };
 
-  const NAMA_BULAN = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-  ];
-  const NAMA_BULAN_PENDEK = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-
   let bulan = $state(data.bulan);
   let daftar = $state<Tagihan[]>(data.daftar);
   let kategoris = $state<Kategori[]>(data.kategoris);
@@ -52,12 +46,16 @@
     return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
   }
   function labelBulan(b: string) {
-    const [y, m] = b.split('-').map(Number);
-    return `${NAMA_BULAN[m - 1]} ${y}`;
+    return new Date(`${b}-01T00:00:00`).toLocaleDateString('id-ID', {
+      month: 'long',
+      year: 'numeric'
+    });
   }
   function labelPendek(b: string) {
-    const [y, m] = b.split('-').map(Number);
-    return `${NAMA_BULAN_PENDEK[m - 1]} ${y}`;
+    return new Date(`${b}-01T00:00:00`).toLocaleDateString('id-ID', {
+      month: 'short',
+      year: 'numeric'
+    });
   }
   function pilih(b: string) {
     if (b === bulan) return;

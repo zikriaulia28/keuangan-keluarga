@@ -4,13 +4,9 @@ import { eq } from 'drizzle-orm';
 import { db, dompet, kategori, tagihan, tagihanBayar, transaksi } from 'db';
 import { currentUser } from '$lib/server/auth';
 import { saldoSemuaDompet } from '$lib/server/saldo';
+import { bulanBerjalan } from '$lib/server/dashboard';
 
 const BULAN = /^[0-9]{4}-[0-9]{2}$/;
-
-function bulanBerjalan(): string {
-	const now = new Date();
-	return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
 
 export const load: PageServerLoad = async ({ cookies, url }) => {
 	const user = await currentUser(cookies);
