@@ -29,6 +29,7 @@
 	const navSidebar = [
 		{ href: '/app', label: 'Ringkasan', ikon: 'ringkasan' },
 		{ href: '/app/transaksi', label: 'Transaksi', ikon: 'catat' },
+		{ href: '/app/laporan', label: 'Laporan', ikon: 'laporan' },
 		{ href: '/app/dompet', label: 'Dompet', ikon: 'dompet' },
 		{ href: '/app/anggaran', label: 'Anggaran', ikon: 'anggaran' },
 		{ href: '/app/tagihan', label: 'Tagihan', ikon: 'tagihan' },
@@ -68,7 +69,7 @@
 </script>
 
 <div class="flex min-h-dvh flex-col bg-ground">
-	<header class="sticky top-0 z-40 bg-ground/85 backdrop-blur-md">
+	<header class="sticky top-0 z-40 bg-ground/85 backdrop-blur-md print:hidden">
 		<div
 			class="mx-auto flex h-14 w-full max-w-2xl items-center justify-between px-4 md:h-16 md:max-w-6xl md:px-8"
 		>
@@ -86,7 +87,7 @@
 	</header>
 
 	<div class="mx-auto flex w-full max-w-2xl flex-1 md:max-w-6xl">
-		<aside class="sticky top-16 hidden h-[calc(100dvh-4rem)] w-52 shrink-0 py-6 pr-6 md:block">
+		<aside class="sticky top-16 hidden h-[calc(100dvh-4rem)] w-52 shrink-0 py-6 pr-6 md:block print:hidden">
 			<nav aria-label="Navigasi utama" class="flex flex-col gap-1">
 				{#each sidebar as item (item.href)}
 					<a
@@ -104,7 +105,7 @@
 			</nav>
 		</aside>
 
-		<main class="min-w-0 flex-1 px-4 pt-4 pb-28 md:px-8 md:pt-6 md:pb-16">
+		<main class="min-w-0 flex-1 px-4 pt-4 pb-28 md:px-8 md:pt-6 md:pb-16 print:p-0">
 			{#if memeriksa}
 				<p class="label">Memeriksa sesi…</p>
 			{:else if user}
@@ -116,7 +117,7 @@
 	<!-- HP: ikon + label, aktif filled hijau. -->
 	<nav
 		aria-label="Navigasi bawah"
-		class="fixed inset-x-0 bottom-0 z-40 bg-ground/90 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md md:hidden"
+		class="fixed inset-x-0 bottom-0 z-40 bg-ground/90 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md md:hidden print:hidden"
 	>
 		<div class="mx-auto flex h-16 max-w-2xl items-stretch gap-1 px-2">
 			{#each navBawah as item (item.href)}
