@@ -295,3 +295,103 @@ input[type='date'] {
     transition: none;
   }
 }
+
+/* ============================================================
+   CETAK / PDF (rekening koran)
+   Nol dependency: varian `print:` Tailwind menyembunyikan chrome
+   navigasi, dan blok di bawah mengatur halaman kertas. Margin
+   `@page` best-effort — Chrome/Shrink-to-fit tidak selalu sama,
+   jadi jangan bergantung padanya untuk kelengkapan tabel.
+   ============================================================ */
+@media print {
+  /* Tanpa ini batang tren dan badge warna jadi putih kosong. */
+  html,
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  @page {
+    margin: 12mm;
+  }
+
+  /* Ringkasan di layar sudah ditandai print:hidden, jadi blok koran tidak
+     perlu halaman kosong di depannya — ini halaman pertama cetakan. */
+  .koran-hal-pisah {
+    break-after: page;
+  }
+
+  /* A single row must never be split across a page boundary. */
+  .koran-tabel tr {
+    break-inside: avoid;
+  }
+  /* Repeat the column header inside any block that does overflow, on top of
+     the manual per-block header split. */
+  .koran-tabel thead {
+    display: table-header-group;
+  }
+
+  .koran-hal {
+    font-size: 9pt;
+    line-height: 1.25;
+  }
+  .koran-kepala {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4pt;
+    font-size: 10pt;
+  }
+  .koran-tabel {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .koran-tabel th,
+  .koran-tabel td {
+    border-bottom: 0.5pt solid #d8d4cb;
+    padding: 2.2pt 3pt;
+    text-align: left;
+    vertical-align: top;
+  }
+  .koran-tabel thead th {
+    border-bottom: 1pt solid #8a8578;
+    font-size: 8pt;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .koran-tabel .k-angka {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .koran-tabel .k-no {
+    width: 4%;
+    text-align: right;
+  }
+  .koran-tabel .k-tgl {
+    width: 10%;
+    white-space: nowrap;
+  }
+  .koran-tabel .k-dompet {
+    width: 13%;
+  }
+  .koran-tabel .k-ket {
+    width: 33%;
+  }
+  .koran-tabel .k-kat {
+    width: 14%;
+  }
+  /* Opening/closing balance rows: bold with a rule, the way a paper statement
+     marks them. Amount sits right-aligned across the Masuk+Keluar columns so
+     the eye lands on it. */
+  .koran-total td {
+    border-top: 0.5pt solid #8a8578;
+    border-bottom: 0.5pt solid #8a8578;
+    font-weight: 700;
+    padding-top: 3pt;
+    padding-bottom: 3pt;
+  }
+  .koran-total:last-child td {
+    border-bottom: 1.2pt solid #2f3d33;
+  }
+}

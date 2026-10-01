@@ -31,6 +31,11 @@
 	{:else if name === 'catat'}
 		<path d="M12 20h9" />
 		<path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+	{:else if name === 'laporan'}
+		<path d="M4 20V10" />
+		<path d="M10 20V4" />
+		<path d="M16 20v-7" />
+		<path d="M22 20H2" />
 	{:else if name === 'tagihan'}
 		<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
 		<path d="M14 2v6h6" />

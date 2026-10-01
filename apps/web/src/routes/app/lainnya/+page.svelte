@@ -14,6 +14,7 @@
 	let galat = $state('');
 
 	const semua = [
+		{ href: '/app/laporan', label: 'Laporan', etwa: 'Ringkasan periode, tren bulanan, dan pergerakan saldo.' },
 		{ href: '/app/dompet', label: 'Dompet', etwa: 'Pisahkan dana per dompet dan alokasikan antar dompet.' },
 		{ href: '/app/anggaran', label: 'Anggaran', etwa: 'Batas pengeluaran per kategori setiap bulan.' },
 		{ href: '/app/pengguna', label: 'Pengguna', etwa: 'Kelola anggota keluarga dan hak aksesnya.' }
