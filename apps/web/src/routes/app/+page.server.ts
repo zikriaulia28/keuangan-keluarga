@@ -2,10 +2,12 @@ import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { currentUser } from '$lib/server/auth';
 import { bulanBerjalan, listTagihan, listUtangAktif, loadRingkasan } from '$lib/server/dashboard';
+import { header, mulai } from '$lib/server/waktu';
 
 const BULAN = /^[0-9]{4}-[0-9]{2}$/;
 
-export const load: PageServerLoad = async ({ cookies, url }) => {
+export const load: PageServerLoad = async ({ cookies, url, setHeaders }) => {
+	const t0 = mulai();
 	const user = await currentUser(cookies);
 	if (!user) redirect(302, '/');
 
@@ -17,6 +19,10 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 		listTagihan(bulan),
 		listUtangAktif()
 	]);
+
+	// 3 hop: currentUser → batch(loadRingkasan ∥ listTagihan ∥ utang); listTagihan
+	// sendiri masih 2 query berurutan sehingga jadi jalur terpanjang.
+	setHeaders({ 'server-timing': header(t0, 3) });
 
 	return { bulan, ringkasan, tagihan, utang, namaPengguna: user.username };
 };

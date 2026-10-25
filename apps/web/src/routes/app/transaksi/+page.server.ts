@@ -4,8 +4,10 @@ import { desc, eq, sql, and, gte, lte } from 'drizzle-orm';
 import { db, dompet, kategori, transaksi, users } from 'db';
 import { currentUser } from '$lib/server/auth';
 import { saldoSemuaDompet } from '$lib/server/saldo';
+import { header, mulai } from '$lib/server/waktu';
 
-export const load: PageServerLoad = async ({ cookies }) => {
+export const load: PageServerLoad = async ({ cookies, setHeaders }) => {
+	const t0 = mulai();
 	const user = await currentUser(cookies);
 	if (!user) redirect(302, '/');
 
@@ -64,6 +66,9 @@ export const load: PageServerLoad = async ({ cookies }) => {
 		return Number(r[0]?.n ?? 0);
 	};
 	const [statMasuk, statKeluar] = await Promise.all([sum('masuk'), sum('keluar')]);
+
+	// 3 hop: currentUser → batch 5 query → batch 2 statistik bulanan.
+	setHeaders({ 'server-timing': header(t0, 3) });
 
 	return { dompet: dompetOut, kategoriMasuk: katMasuk, kategoriKeluar: katKeluar, daftar, statMasuk, statKeluar };
 };

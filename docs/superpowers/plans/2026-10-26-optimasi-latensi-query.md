@@ -134,7 +134,7 @@ Di setiap berkas, catat `const t0 = mulai()` sebelum query pertama dan pasang he
 
 | Berkas | Nilai `hop` | Cara memasang |
 |---|---|---|
-| `app/+page.server.ts` | `6` | `setHeaders({ 'server-timing': header(t0, 6) })` (tambahkan `setHeaders` ke import `@sveltejs/kit`) |
+| `app/+page.server.ts` | `6` | `setHeaders({ 'server-timing': header(t0, 6) })` — `setHeaders` adalah **properti event `load`**, bukan ekspor `@sveltejs/kit`; destructure dari argumen `async ({ cookies, url, setHeaders })` |
 | `app/transaksi/+page.server.ts` | `4` | sama |
 | `app/tagihan/+page.server.ts` | `4` | sama |
 | `api/ringkasan/+server.ts` | `6` | `json(data, { headers: { 'server-timing': header(t0, 6) } })` |

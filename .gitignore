@@ -4,3 +4,6 @@ build/
 .env
 !.env.example
 .vercel/
+
+# Baseline pengukuran — berisi data keuangan pribadi, repo ini publik
+apps/web/.baseline/

@@ -4,8 +4,10 @@ import { eq } from 'drizzle-orm';
 import { db, dompet } from 'db';
 import { currentUser } from '$lib/server/auth';
 import { saldoSemuaDompet } from '$lib/server/saldo';
+import { header, mulai } from '$lib/server/waktu';
 
 export const GET: RequestHandler = async ({ cookies, url }) => {
+  const t0 = mulai();
   const user = await currentUser(cookies);
   if (!user) return json({ error: 'UNAUTHENTICATED' }, { status: 401 });
   // Default hanya dompet aktif supaya form transaksi/tagihan tak pernah
@@ -17,13 +19,15 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
       : db.select().from(dompet).where(eq(dompet.arsip, false)).orderBy(dompet.nama),
     saldoSemuaDompet(db)
   ]);
+  // 2 hop: currentUser → satu batch (list + saldo).
   return json(
     list.map((d) => ({
       id_dompet: d.id,
       nama_dompet: d.nama,
       arsip: d.arsip,
       saldo: saldo.get(d.id) ?? 0
-    }))
+    })),
+    { headers: { 'server-timing': header(t0, 2) } }
   );
 };
 

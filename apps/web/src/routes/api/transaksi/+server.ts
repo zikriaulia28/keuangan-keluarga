@@ -4,10 +4,12 @@ import { and, desc, eq, gte, ilike, lt, lte, or, sql } from 'drizzle-orm';
 import { db, dompet, kategori, transaksi, users } from 'db';
 import { currentUser } from '$lib/server/auth';
 import { saldoDompet } from '$lib/server/saldo';
+import { header, mulai } from '$lib/server/waktu';
 
 const TGL = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 
 export const GET: RequestHandler = async ({ cookies, url }) => {
+  const t0 = mulai();
   const user = await currentUser(cookies);
   if (!user) return json({ error: 'UNAUTHENTICATED' }, { status: 401 });
   const conds = [];
@@ -58,6 +60,7 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(transaksi.tanggal), desc(transaksi.id))
       .limit(limit),
+    { headers: { 'server-timing': header(t0, 2) } },
   );
 };
 

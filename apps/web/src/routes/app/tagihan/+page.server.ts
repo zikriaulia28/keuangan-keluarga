@@ -5,10 +5,12 @@ import { db, dompet, kategori, tagihan, tagihanBayar, transaksi } from 'db';
 import { currentUser } from '$lib/server/auth';
 import { saldoSemuaDompet } from '$lib/server/saldo';
 import { bulanBerjalan } from '$lib/server/dashboard';
+import { header, mulai } from '$lib/server/waktu';
 
 const BULAN = /^[0-9]{4}-[0-9]{2}$/;
 
-export const load: PageServerLoad = async ({ cookies, url }) => {
+export const load: PageServerLoad = async ({ cookies, url, setHeaders }) => {
+	const t0 = mulai();
 	const user = await currentUser(cookies);
 	if (!user) redirect(302, '/');
 
@@ -59,6 +61,9 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 	if (dompets.length > 0) {
 		for (const t of daftar) dompetPilih[t.id] = String(dompets[0].id_dompet);
 	}
+
+	// 3 hop: currentUser → batch 4 query → saldoSemuaDompet (terpisah).
+	setHeaders({ 'server-timing': header(t0, 3) });
 
 	return { bulan, role: user.role, daftar, kategoris: kat, dompets, dompetPilih, via };
 };
