@@ -1,4 +1,4 @@
-import { check, index, integer, pgTable, serial, text, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, pgTable, serial, text, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const users = pgTable('users', {
@@ -17,10 +17,12 @@ export const sessions = pgTable('sessions', {
   expiresAt: timestamp('expires_at', { mode: 'string' }).notNull(),
 });
 
-// Satu baris: 'Kas Keluarga'. Tabel dipertahankan agar transfer/riwayat konsisten.
+// Dompet = sumber & tujuan dana. Satu baris awal: 'Kas Keluarga'.
+// `arsip` menyembunyikan dompet dari form tanpa menghapus riwayatnya.
 export const dompet = pgTable('dompet', {
   id: serial('id_dompet').primaryKey(),
   nama: varchar('nama_dompet', { length: 64 }).notNull().unique(),
+  arsip: boolean('arsip').notNull().default(false),
 });
 
 export const kategori = pgTable('kategori', {
@@ -48,6 +50,23 @@ export const transaksi = pgTable('transaksi', {
   index('transaksi_tanggal_id_idx').on(t.tanggal, t.id),
   index('transaksi_dompet_idx').on(t.dompetId),
   index('transaksi_kategori_idx').on(t.kategoriId),
+]);
+
+// Alokasi dana antar dompet. Sengaja terpisah dari `transaksi` agar tidak ikut
+// terhitung sebagai pemasukan/pengeluaran pada rekap & grafik kategori.
+export const transfer = pgTable('transfer', {
+  id: serial('id').primaryKey(),
+  tanggal: varchar('tanggal', { length: 10 }).notNull(),
+  dompetAsal: integer('id_dompet_asal').notNull().references(() => dompet.id, { onDelete: 'restrict' }),
+  dompetTujuan: integer('id_dompet_tujuan').notNull().references(() => dompet.id, { onDelete: 'restrict' }),
+  jumlah: integer('jumlah').notNull(),
+  catatan: text('catatan').notNull().default(''),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  createdAt: timestamp('created_at', { mode: 'string' }).notNull().defaultNow(),
+}, (t) => [
+  check('transfer_jumlah_check', sql`${t.jumlah} > 0`),
+  check('transfer_dompet_check', sql`${t.dompetAsal} <> ${t.dompetTujuan}`),
+  index('transfer_tanggal_id_idx').on(t.tanggal, t.id),
 ]);
 
 export const anggaran = pgTable('anggaran', {

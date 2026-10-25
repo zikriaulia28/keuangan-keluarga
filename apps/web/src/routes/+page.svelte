@@ -10,6 +10,10 @@
 	async function masuk(e: SubmitEvent) {
 		e.preventDefault();
 		salah = '';
+		if (!username.trim() || !password) {
+			salah = 'Isi username dan password dulu.';
+			return;
+		}
 		memproses = true;
 		try {
 			await api('/api/login', { method: 'POST', body: JSON.stringify({ username, password }) });
@@ -22,29 +26,28 @@
 	}
 </script>
 
-<main class="flex min-h-dvh items-center justify-center bg-surface px-4 py-8 font-sans">
-	<div
-		class="w-full max-w-sm rounded-2xl bg-lowest p-6 shadow-[0_8px_30px_-4px_rgba(37,99,235,0.12)] md:p-8"
-	>
-		<div class="mb-6 flex flex-col items-center text-center">
-			<img src="/logo.png" alt="Logo Kas Keluarga" class="mb-3 h-14 w-auto object-contain" />
-			<h1 class="text-xl font-bold text-on-surface">Kas Keluarga</h1>
-			<p class="mt-1 text-sm text-on-variant">Masuk untuk mengelola keuangan keluarga</p>
+<main class="flex min-h-dvh flex-col bg-ground px-5 py-10 md:justify-center md:py-16">
+	<div class="mx-auto w-full max-w-sm">
+		<div class="flex flex-col items-center text-center">
+			<img src="/logo.png" alt="Logo Kas Keluarga" class="h-12 w-auto object-contain" />
+			<h1 class="mt-4 text-[22px] font-extrabold tracking-tight">Kas Keluarga</h1>
+			<p class="mt-1.5 text-sm text-ink-2">Pencatatan keuangan keluarga dalam satu tempat.</p>
 		</div>
-		<form onsubmit={masuk} class="flex flex-col gap-4">
-			<div>
-				<label for="username" class="mb-1 block text-sm font-medium text-on-variant">Username</label>
+
+		<form onsubmit={masuk} class="card mt-7 flex flex-col gap-4 p-5 md:p-6">
+			<div class="flex flex-col gap-1.5">
+				<label for="username" class="label">Username</label>
 				<input
 					id="username"
 					bind:value={username}
 					autocomplete="username"
 					required
 					placeholder="Nama pengguna"
-					class="w-full rounded-lg bg-surface-low px-4 py-2.5 text-on-surface outline-none transition focus:ring-2 focus:ring-primary"
+					class="input"
 				/>
 			</div>
-			<div>
-				<label for="password" class="mb-1 block text-sm font-medium text-on-variant">Password</label>
+			<div class="flex flex-col gap-1.5">
+				<label for="password" class="label">Password</label>
 				<input
 					id="password"
 					type="password"
@@ -52,22 +55,21 @@
 					autocomplete="current-password"
 					required
 					placeholder="Kata sandi"
-					class="w-full rounded-lg bg-surface-low px-4 py-2.5 text-on-surface outline-none transition focus:ring-2 focus:ring-primary"
+					class="input"
 				/>
 			</div>
+
 			{#if salah}
-				<p role="alert" class="flex items-center gap-1.5 text-sm font-medium text-error">
-					<span class="material-symbols-outlined text-base">error</span>
-					{salah}
-				</p>
+				<p role="alert" class="notice notice-alert">{salah}</p>
 			{/if}
-			<button
-				type="submit"
-				disabled={memproses}
-				class="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-on-primary shadow-md transition hover:opacity-95 active:scale-95 disabled:opacity-60"
-			>
+
+			<button type="submit" disabled={memproses} class="btn btn-primary mt-1 w-full">
 				{memproses ? 'Memeriksa…' : 'Masuk'}
 			</button>
 		</form>
+
+		<p class="mt-6 px-1 text-[13px] leading-relaxed text-ink-3">
+			Saldo dompet tidak dapat minus. Pembayaran tagihan dan utang tercatat otomatis sebagai transaksi.
+		</p>
 	</div>
 </main>

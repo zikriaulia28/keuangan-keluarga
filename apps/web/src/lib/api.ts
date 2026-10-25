@@ -11,4 +11,12 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body;
 }
 
-export const rupiah = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+// Formatter dibuat sekali, bukan tiap panggilan: rekening koran memanggil ini
+// ~340 kali untuk satu render, dan `toLocaleString` membangun ulang formatter
+// di setiap call.
+const nf = new Intl.NumberFormat('id-ID');
+
+/** Angka polos tanpa "Rp" — untuk kolom tabel yang judulnya sudah menyebut rupiah. */
+export const angka = (n: number) => nf.format(Math.round(n));
+
+export const rupiah = (n: number) => `Rp ${angka(n)}`;

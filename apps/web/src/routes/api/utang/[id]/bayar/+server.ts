@@ -12,11 +12,13 @@ export const POST: RequestHandler = async ({ cookies, request, params }) => {
   // Elysia memvalidasi body SEBELUM handler → cek struktur dulu.
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body || typeof body !== 'object') return json({ error: 'INTERNAL' }, { status: 422 });
-  const { jumlah, tanggal } = body;
+  const { jumlah, tanggal, id_dompet } = body;
   if (typeof jumlah !== 'number' || !Number.isInteger(jumlah) || jumlah < 1)
     return json({ error: 'INTERNAL' }, { status: 422 });
   if (tanggal !== undefined && typeof tanggal !== 'string')
     return json({ error: 'INTERNAL' }, { status: 422 });
+  if (id_dompet !== undefined && (typeof id_dompet !== 'number' || !Number.isInteger(id_dompet)))
+    return json({ error: 'INVALID_WALLET' }, { status: 400 });
   const id = Number(params.id);
   const row = Number.isInteger(id)
     ? (await db.select().from(utang).where(eq(utang.id, id)).limit(1))[0]
@@ -26,7 +28,14 @@ export const POST: RequestHandler = async ({ cookies, request, params }) => {
   if (sisa <= 0) return json({ error: 'ALREADY_PAID' }, { status: 400 });
   if (jumlah > sisa) return json({ error: 'OVERPAY' }, { status: 400 });
   // Bayar utang = uang keluar; terima piutang = uang masuk. Catat otomatis.
-  const d = (await db.select().from(dompet).orderBy(dompet.id).limit(1))[0];
+  // Tanpa id_dompet, jatuh ke dompet aktif pertama.
+  const kandidat = await db
+    .select()
+    .from(dompet)
+    .where(id_dompet === undefined ? eq(dompet.arsip, false) : eq(dompet.id, id_dompet))
+    .orderBy(dompet.id)
+    .limit(1);
+  const d = kandidat[0];
   if (!d) return json({ error: 'NO_WALLET' }, { status: 400 });
   const tipe = row.arah === 'utang' ? 'keluar' : 'masuk';
   if (tipe === 'keluar' && jumlah > (await saldoDompet(db, d.id)))

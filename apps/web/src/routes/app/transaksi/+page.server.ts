@@ -1,9 +1,9 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { desc, eq, sql, and } from 'drizzle-orm';
+import { desc, eq, sql, and, gte, lte } from 'drizzle-orm';
 import { db, dompet, kategori, transaksi, users } from 'db';
 import { currentUser } from '$lib/server/auth';
-import { saldoDompet } from '$lib/server/saldo';
+import { saldoSemuaDompet } from '$lib/server/saldo';
 
 export const load: PageServerLoad = async ({ cookies }) => {
 	const user = await currentUser(cookies);
@@ -11,9 +11,13 @@ export const load: PageServerLoad = async ({ cookies }) => {
 
 	const now = new Date();
 	const bulan = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+	const [y, m] = bulan.split('-').map(Number);
+	const akhir = new Date(y, m, 0).getDate();
+	const dari = `${bulan}-01`;
+	const sampai = `${bulan}-${String(akhir).padStart(2, '0')}`;
 
-	const [daftarDompet, katMasuk, katKeluar, rows] = await Promise.all([
-		db.select().from(dompet).orderBy(dompet.nama),
+	const [daftarDompet, katMasuk, katKeluar, rows, saldoSemua] = await Promise.all([
+		db.select().from(dompet).where(eq(dompet.arsip, false)).orderBy(dompet.nama),
 		db.select().from(kategori).where(eq(kategori.tipe, 'masuk')).orderBy(kategori.nama),
 		db.select().from(kategori).where(eq(kategori.tipe, 'keluar')).orderBy(kategori.nama),
 		db
@@ -34,20 +38,29 @@ export const load: PageServerLoad = async ({ cookies }) => {
 			.innerJoin(kategori, eq(transaksi.kategoriId, kategori.id))
 			.innerJoin(users, eq(transaksi.userId, users.id))
 			.orderBy(desc(transaksi.tanggal), desc(transaksi.id))
-			.limit(100)
+			.limit(100),
+		saldoSemuaDompet(db)
 	]);
 	const daftar = rows.map((r) => ({ ...r, tipe: r.tipe as 'masuk' | 'keluar' }));
 
-	const dompetOut = [];
-	for (const d of daftarDompet) {
-		dompetOut.push({ id_dompet: d.id, nama_dompet: d.nama, saldo: await saldoDompet(db, d.id) });
-	}
+	const dompetOut = daftarDompet.map((d) => ({
+		id_dompet: d.id,
+		nama_dompet: d.nama,
+		saldo: saldoSemua.get(d.id) ?? 0
+	}));
 
+	// Rentang tanggal, bukan substring(): substring() tidak bisa memakai index tanggal.
 	const sum = async (tipe: 'masuk' | 'keluar') => {
 		const r = await db
 			.select({ n: sql<number>`COALESCE(SUM(${transaksi.jumlah}), 0)` })
 			.from(transaksi)
-			.where(and(eq(transaksi.tipe, tipe), sql`substring(${transaksi.tanggal} from 1 for 7) = ${bulan}`));
+			.where(
+				and(
+					eq(transaksi.tipe, tipe),
+					gte(transaksi.tanggal, dari),
+					lte(transaksi.tanggal, sampai)
+				)
+			);
 		return Number(r[0]?.n ?? 0);
 	};
 	const [statMasuk, statKeluar] = await Promise.all([sum('masuk'), sum('keluar')]);
