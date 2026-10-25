@@ -8,6 +8,11 @@
  *   SESSION=<token cookie session> bun scripts/banding-respon.ts ukur
  *   SESSION=... BASE=https://keuangan-keluarga-chi.vercel.app bun scripts/banding-respon.ts ukur
  *
+ * Nama target boleh diberikan setelah mode untuk membatasi (mis. saat merekam
+ * baseline halaman saja tanpa menimpa baseline endpoint API):
+ *
+ *   bun scripts/banding-respon.ts simpan hal-dashboard hal-transaksi hal-tagihan
+ *
  * Env:
  *   SESSION  token cookie `session` (wajib; berlaku 12 jam)
  *   BASE     default http://localhost:5173
@@ -16,6 +21,9 @@
  * `simpan`  → menulis .baseline/<nama-endpoint>.json (ter-ignore; jangan sampai ter-commit)
  * `banding` → mengambil ulang lalu deep-equal (abaikan urutan kunci) terhadap baseline
  * `ukur`    → cetak ms total + header Server-Timing per endpoint, tanpa menulis file
+ *
+ * Target `hal-*` memakai `__data.json` SvelteKit — data `load` SSR per halaman,
+ * sehingga refactor `+page.server.ts` ikut terverifikasi, bukan hanya endpoint API.
  */
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -39,7 +47,7 @@ if (!/^[0-9]{4}-[0-9]{2}$/.test(BULAN)) {
 	process.exit(1);
 }
 
-/** Lima endpoint pembanding (lihat spesifikasi §7 + laporan). */
+/** Lima endpoint API + tiga halaman SSR pembanding (spesifikasi §7). */
 const endpoint = [
 	{ nama: 'dompet', path: '/api/dompet' },
 	{ nama: 'ringkasan', path: `/api/ringkasan?bulan=${BULAN}` },
@@ -48,8 +56,22 @@ const endpoint = [
 	{
 		nama: 'laporan',
 		path: `/api/laporan?dari=${BULAN}-01&sampai=${akhirBulan(BULAN)}`
-	}
+	},
+	{ nama: 'hal-dashboard', path: '/app/__data.json' },
+	{ nama: 'hal-transaksi', path: '/app/transaksi/__data.json' },
+	{ nama: 'hal-tagihan', path: '/app/tagihan/__data.json' }
 ] as const;
+
+/** Nama target setelah argumen mode — kosong = semua. */
+const pilih = process.argv.slice(3);
+const takDikenal = pilih.filter((n) => !endpoint.some((e) => e.nama === n));
+if (takDikenal.length) {
+	console.error(`Nama tak dikenal: ${takDikenal.join(', ')}`);
+	process.exit(1);
+}
+const daftar: readonly { nama: string; path: string }[] = pilih.length
+	? endpoint.filter((e) => pilih.includes(e.nama))
+	: endpoint;
 
 /** Hari terakhir bulan `YYYY-MM` sebagai `YYYY-MM-DD`. */
 function akhirBulan(b: string): string {
@@ -67,7 +89,7 @@ type Hasil = {
 	data: unknown;
 };
 
-async function ambil(e: (typeof endpoint)[number]): Promise<Hasil> {
+async function ambil(e: { nama: string; path: string }): Promise<Hasil> {
 	const t0 = performance.now();
 	const r = await fetch(`${BASE}${e.path}`, {
 		headers: { Cookie: `session=${SESSION}`, accept: 'application/json' }
@@ -108,7 +130,7 @@ function sama(a: unknown, b: unknown): boolean {
 
 async function simpan() {
 	mkdirSync(DIR, { recursive: true });
-	for (const e of endpoint) {
+	for (const e of daftar) {
 		const h = await ambil(e);
 		if (h.status !== 200) {
 			console.error(`GAGAL ${e.nama}: HTTP ${h.status} — ${String(h.data).slice(0, 200)}`);
@@ -127,7 +149,7 @@ async function simpan() {
 
 async function banding() {
 	let adaBeda = false;
-	for (const e of endpoint) {
+	for (const e of daftar) {
 		const file = join(DIR, `${e.nama}.json`);
 		if (!existsSync(file)) {
 			console.error(`BEDA    ${e.nama.padEnd(10)} baseline tidak ada — jalankan \`simpan\` dulu`);
@@ -155,7 +177,7 @@ async function banding() {
 async function ukur() {
 	console.log(`BASE=${BASE}  BULAN=${BULAN}`);
 	console.log('endpoint     ms  server-timing');
-	for (const e of endpoint) {
+	for (const e of daftar) {
 		const h = await ambil(e);
 		console.log(
 			`${e.nama.padEnd(11)} ${String(h.ms).padStart(5)}  ${h.serverTiming ?? '(tidak ada)'}  [${h.status}]`

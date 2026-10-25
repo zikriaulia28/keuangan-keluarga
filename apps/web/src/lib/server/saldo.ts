@@ -24,6 +24,11 @@ export async function saldoDompet(database: Db, id: number): Promise<number> {
  * PENTING: transaksi dan transfer dijumlahkan di subquery terpisah lalu
  * digabung. Kalau keduanya di-JOIN langsung ke `dompet`, Conditions
  * `OR` pada transfer memunculkan produk kartesian dan saldo terhitung ganda.
+ *
+ * Catatan tepi: pada baris transfer `asal == tujuan` (mustahil lewat API —
+ * ditolak `SAME_WALLET`; hanya bisa lahir dari edit manual data) fungsi ini
+ * menghasilkan 0 sementara `saldoDompet` menghasilkan +jumlah. Tidak berdampak
+ * pada jalur tulis mana pun selama data lewat API.
  */
 export async function saldoSemuaDompet(database: Db): Promise<Map<number, number>> {
 	const rows = await database.execute<{ id_dompet: number; saldo: number }>(sql`

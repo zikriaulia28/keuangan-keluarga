@@ -123,13 +123,20 @@ Semua query yang tidak saling bergantung digabung ke satu `Promise.all` **setela
 
 Perhop (rantai `await` berurutan), N = jumlah dompet:
 
-| Halaman / endpoint | Sebelum | Sesudah |
+> **Koreksi pasca-review:** kolom "Sebelum" di bawah adalah **state saat desain
+> ditulis**, yaitu sebelum merge `67a1c34` (`origin/main`) — **bukan** base
+> commit `f46b682`. Base sesungguhnya sudah berisi sebagian batching dari
+> riwayat lama (`816a546`, `7fffa7e`: `saldoSemuaDompet` sudah ada, `/app`
+> sudah satu `Promise.all`), jadi **delta nyata dari range kerja ini**: `/app`,
+> `/app/transaksi`, `/app/tagihan` **3 → 2**; `/api/ringkasan` **2 → 2**;
+> `/api/dompet` **2 → 2**; `/api/tagihan` **3 → 2**; `/api/laporan` **3 → 2**.
+| Halaman / endpoint | Sebelum (saat desain) | Sesudah |
 |---|---|---|
-| `/app` (dashboard) | 6 (+1 per N) | 2 |
-| `/app/transaksi` | 4 | 2 |
-| `/app/tagihan` | 4 | 2 |
-| `GET /api/ringkasan` | 6 (+1 per N) | 2 |
-| `GET /api/dompet` | 2 + N | 2 |
+| `/app` (dashboard) | 6 (+1 per N) | 2 (base: 3) |
+| `/app/transaksi` | 4 | 2 (base: 3) |
+| `/app/tagihan` | 4 | 2 (base: 3) |
+| `GET /api/ringkasan` | 6 (+1 per N) | 2 (base: 2 — memang tak berubah) |
+| `GET /api/dompet` | 2 + N | 2 (base: 2 — memang tak berubah) |
 | `GET /api/tagihan` | 3 | 2 |
 | `GET /api/laporan` | 3 (batch pembanding berurutan) | 2 |
 | `GET /api/transaksi` | 2 (sudah paralel) | 2 |
@@ -161,14 +168,14 @@ Seluruh endpoint tulis (enam di atas) dipasangi instrumen `Server-Timing` lewat 
 
 ### 5.4 Daftar file yang disentuh
 
-Perubahan (5.1–5.3, 5.6) — final setelah implementasi:
+Perubahan (5.1–5.3, 5.6) — final setelah implementasi **dan review akhir**:
 
-- `apps/web/src/lib/server/saldo.ts` — tambah `saldoSemuaDompet`
+- `apps/web/src/lib/server/saldo.ts` — **hanya komentar** catatan tepi self-transfer
+  (kode primitive-nya sendiri sudah ada sejak `7fffa7e`, di luar range kerja ini)
 - `apps/web/src/lib/server/dashboard.ts` — `loadRingkasan`, `listTagihan`
 - `apps/web/src/routes/app/+page.server.ts`
 - `apps/web/src/routes/app/transaksi/+page.server.ts`
 - `apps/web/src/routes/app/tagihan/+page.server.ts`
-- `apps/web/src/routes/app/dompet/+page.server.ts` (memakai primitive)
 - `apps/web/src/routes/api/dompet/+server.ts` (`GET`)
 - `apps/web/src/routes/api/dompet/[id]/+server.ts` (`PATCH`, batch dua cek)
 - `apps/web/src/routes/api/tagihan/+server.ts` (`GET`)
@@ -215,10 +222,11 @@ export const POST: RequestHandler = async (args) => {
 
 ### 5.6 Batas pool koneksi
 
-Setelah paralelisasi, dashboard menembakkan ±10 query dalam satu gelombang — persis
-sebesar default postgres.js `max: 10`. Pengguna kedua yang datang pada saat bersamaan
-harus menunggu gelombang pertama selesai, dan tiap query menahan koneksi selama satu RTT
-`iad1↔Singapore` (~200 ms).
+Setelah paralelisasi, dashboard menembakkan **11 query** dalam satu gelombang (8
+`loadRingkasan` + 2 `listTagihan` + 1 `listUtangAktif`) — melebihi default postgres.js
+`max: 10`. Gelombang `/api/laporan` berisi 12. Pengguna kedua yang datang pada saat
+bersamaan harus menunggu gelombang pertama selesai, dan tiap query menahan koneksi
+selama satu RTT `iad1↔Singapore` (~200 ms).
 
 Perubahan: `packages/db/src/index.ts`
 
@@ -226,10 +234,10 @@ Perubahan: `packages/db/src/index.ts`
 const client = postgres(url, { prepare: false, max: 16 });
 ```
 
-16 = 10 untuk satu gelombang dashboard + 6 cadangan untuk pengguna kedua. Neon pooler
-mengizinkan jauh lebih banyak, dan dengan hanya 2 pengguna angka ini sangat konservatif.
-Komentar di samping kode menjelaskan asal angka 16 agar tidak ada yang "mengembalikan ke
-default" di kemudian hari.
+16 = 11 untuk gelombang dashboard + 5 cadangan pengguna kedua (gelombang laporan 12
+masih muat dengan sisa 4). Neon pooler mengizinkan jauh lebih banyak, dan dengan hanya
+2 pengguna angka ini sangat konservatif. Komentar di samping kode menjelaskan asal angka
+16 agar tidak ada yang "mengembalikan ke default" di kemudian hari.
 
 ## 6. Urutan implementasi dan pengukuran
 
@@ -258,13 +266,20 @@ fungsinya tercakup `verifikasi-dashboard` + `banding`):
   `saldoDompet` per id). **Hasil: PASS 26 cek**, lulus sebelum dan sesudah refactor.
 - **`bun scripts/verifikasi-tulis.ts`** — uji negatif jalur tulis: tiap kasus memakai
   jalur yang ditolak validasi, membandingkan jumlah baris (dan isi tabel `dompet` untuk
-  `PATCH /api/dompet`) sebelum/sesudah. **Hasil: PASS 10/10, nol baris baru.**
+  `PATCH /api/dompet`) sebelum/sesudah. `jumlah` diturunkan dari saldo segar
+  (`max(1, saldo + 1)`) sehingga penolakan dijamin terjadi — bukan angka tetap yang
+  bisa lolos. **Hasil: PASS 10/10, nol baris baru.**
 - **`bun scripts/banding-respon.ts banding`** — diff response JSON terhadap baseline
-  (5 endpoint: `/api/dompet`, `/api/ringkasan`, `/api/transaksi`, `/api/tagihan`,
-  `/api/laporan`) dijalankan lokal **dan** terhadap produksi. **Hasil: IDENTIK ×5 di
-  keduanya.**
+  **8 target**: 5 endpoint API (`/api/dompet`, `/api/ringkasan`, `/api/transaksi`,
+  `/api/tagihan`, `/api/laporan`) + 3 halaman SSR via `__data.json`
+  (`/app`, `/app/transaksi`, `/app/tagihan`) sehingga refactor `+page.server.ts` ikut
+  terverifikasi. Baseline halaman direkam dari **kode lama** (`f46b682`, checkout
+  sementara + restore). Dijalankan lokal **dan** terhadap produksi.
+  **Hasil: IDENTIK ×8 di keduanya.**
 - **`bun scripts/ukur-tulis.ts`** — ukur latensi jalur tulis tanpa pernah menulis
-  (semua permintaan ditolak validasi); memisahkan `total` (jaringan) vs `dur` (handler).
+  (semua permintaan ditolak validasi, `jumlah` dari saldo segar **dan** status tiap
+  respons wajib cocok — keluar 1 bila tidak, menandai kemungkinan tulisan); memisahkan
+  `total` (jaringan) vs `dur` (handler).
 - **Smoke test manual:** buka 5 halaman, tambah/edit/hapus transaksi, bayar utang, bayar
   tagihan, ganti bulan.
 - **Kriteria kecepatan:** `Server-Timing` turun pada setiap halaman yang disentuh.

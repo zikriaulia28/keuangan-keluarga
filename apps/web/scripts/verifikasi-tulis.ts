@@ -13,6 +13,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { db, dompet, kategori, tagihan, transaksi, transfer, utang } from 'db';
+import { saldoDompet } from '../src/lib/server/saldo';
 
 const BASE = process.env.BASE || 'http://localhost:5173';
 const SESSION = process.env.SESSION;
@@ -21,7 +22,6 @@ if (!SESSION) {
 	process.exit(1);
 }
 
-const RAKSASA = 999_999_999;
 let gagal = 0;
 
 async function jumlahBaris() {
@@ -122,6 +122,11 @@ if (!dompetAktif || !kategoriKeluar || !trxAda) {
 	process.exit(1);
 }
 const bulan = new Date().toISOString().slice(0, 7);
+// Penolakan dijamin terbangun dari saldo segar: `jumlah = max(1, saldo + 1)`
+// selalu lolos validasi `jumlah >= 1` sekaligus selalu melebihi saldo — tidak
+// ada angka tetap yang bisa lolos bila saldo suatu hari membesar.
+const saldoAktif = await saldoDompet(db, dompetAktif.id);
+const jumlahTolak = Math.max(1, saldoAktif + 1);
 // Bulan depan: sengaja dipakai untuk uji tagihan supaya tidak kena 409
 // ALREADY_PAID (yang muncul sebelum cek dompet) dan jalur benar-benar sampai
 // ke pemeriksaan dompet.
@@ -141,7 +146,7 @@ await kasus('saldo kurang ditolak', { status: 400, error: 'INSUFFICIENT_BALANCE'
 		tipe: 'keluar',
 		id_dompet: dompetAktif.id,
 		id_kategori: kategoriKeluar.id,
-		jumlah: RAKSASA,
+		jumlah: jumlahTolak,
 		catatan: 'uji-negatif'
 	})
 );
@@ -176,7 +181,7 @@ if (dompetKedua) {
 			tanggal: `${bulan}-01`,
 			id_dompet_asal: dompetAktif.id,
 			id_dompet_tujuan: dompetKedua.id,
-			jumlah: RAKSASA,
+			jumlah: jumlahTolak,
 			catatan: 'uji-negatif'
 		})
 	);

@@ -474,11 +474,44 @@ Seluruh angka `dur` wajib turun dan seluruh label `desc` wajib cocok dengan tabe
    `TZ=UTC`** supaya tetap sah sebagai pembanding "sebelum", lalu `banding` IDENTIK ×5
    di lokal dan produksi. Sesudah fix `iso()`, dev di bawah WIB pun IDENTIK ×5 tanpa
    perlu `TZ=UTC`.
+5. **Label hop di Task 1 beda dengan tabel rencana.** Tabel Step 5 menulis
+   `6/4/4/6/3/2`; yang terpasang `3/3/3/2/2/2` karena merge `67a1c34` (dilakukan
+   sebelum Step 5) sudah membawa `origin/main` yang separuh paralel. Nilai terpasang
+   adalah yang **benar** (dihitung ulang dari jumlah gelombang nyata); setelah optimasi
+   halaman berhenti di `2`. Jangan "dikembalikan" ke angka tabel.
+6. **Baseline direkam dua kali:** kelima endpoint API dengan kode lama `b3d73ff`
+   (lihat deviasi 4), lalu tiga halaman SSR (`__data.json`) dengan kode lama
+   `f46b682` (checkout sementara 4 file → `simpan hal-*` → restore) setelah
+   `banding-respon.ts` diperluas pada review akhir.
 
 **Hasil verifikasi final (semua lulus):** `bun run check` 0 error / 27 warning ·
 `verifikasi-dashboard` PASS 26 cek · `verifikasi-tulis` PASS 10/10 (nol baris baru) ·
-`banding` IDENTIK ×5 lokal **dan** produksi · angka before/after di spec §10.
+`banding` IDENTIK ×8 (5 API + 3 halaman SSR) lokal **dan** produksi · angka before/after
+di spec §10.
 
-**Sisa yang belum dipilih pemilik:** review reviewer segar + `finishing-a-development-branch`;
-naikkan pool 16 → 24; smoke test manual (spec §7); keputusan Pendekatan 2 (angka sudah
-ada di spec §10).
+**Sisa yang belum dipilih pemilik:** naikkan pool 16 → 24; smoke test manual (spec §7);
+keputusan Pendekatan 2 (angka sudah ada di spec §10).
+
+---
+
+## Tindak lanjut review akhir (reviewer segar `f46b682..2b29296`)
+
+Verdict reviewer: **With fixes** — 0 Critical, 4 Important, 4 Minor. Seluruh invarian
+utama (bentuk JSON, urutan galat, `validasi → insert`, `prepare:false`, tanpa baseline
+ter-commit) lolos pemeriksaan kode. Yang ditindak:
+
+| Temuan | Tindakan |
+|---|---|
+| **Imp.1** `ukur-tulis`/`verifikasi-tulis` memakai `jumlah: 999_999_999` — bisa menulis bila saldo melampaui angka itu; `ukur-tulis` juga tidak pernah asersi status | Diperbaiki: `jumlah = max(1, saldo + 1)` (penolakan terbangun dari konstruksi, bukan angka tetap) + `ukur-tulis` kini wajib cocok statusnya, keluar 1 kalau tidak (sorot khusus bila status 2xx) |
+| **Imp.2** spec §5.2 kolom "Sebelum" memakai state **pra-merge**, bukan base `f46b682`; §5.4 salah menyebut `saldo.ts` & `app/dompet` sebagai file yang diubah | Diperbaiki: tabel dikoreksi + catatan delta nyata (halaman 3 → 2; ringkasan/dompet memang 2 → 2 — sebab itu §10 bilang "~sama"); daftar file dikoreksi |
+| **Imp.3** deviasi label hop Task 1 tak tercatat | Dicatat sebagai deviasi #5 di atas |
+| **Imp.4** perubahan `+page.server.ts` tanpa cakupan harness (`banding` hanya API) | Diperbaiki: `banding-respon.ts` kini membandingkan `__data.json` 3 halaman SSR + bisa difilter per nama; baseline direkam dari kode lama `f46b682`; **IDENTIK ×8** lokal |
+| **Min.5** `.gitignore` hanya `apps/web/.baseline/` — skrip dijalankan dari root repo membuat `/.baseline/` tak ter-ignore | Diperbaiki: pola jadi `.baseline/` (kedalaman apa pun) |
+| **Min.6** komentar pool "10 + 6" salah (gelombang dashboard = 11, laporan = 12) | Diperbaiki di `packages/db/src/index.ts` + spec §5.6 |
+| **Min.7** `saldoSemuaDompet` ≠ `saldoDompet` pada transfer `asal == tujuan` (tak tercapai via API, ditolak `SAME_WALLET`) | Dicatat sebagai komentar catatan tepi di `saldo.ts` |
+| **Min.8** kasus `WALLET_ARCHIVED` absen; `bulanDepan` bisa false-fail bila bulan depan sudah dibayar; orakel `listTagihan` tanpa join `kategori` | Tidak ditindak (catatan): kasus pertama butuh dompet terarsip yang mungkin tak ada, dua lainnya false-fail hanya pada data yang belum ada — bukan cacat perilaku aplikasi |
+
+Temuan di luar range (reviewer sendiri menyetelnya aside, tidak diubah): bug zona waktu
+serupa di `app/laporan/+page.svelte` (client) dan default `bulan`/`today` berbasis UTC
+di beberapa endpoint — mengubahnya = mengubah nilai respons, dilarang spec §3. Layak
+tiket terpisah bila pemilik mau.

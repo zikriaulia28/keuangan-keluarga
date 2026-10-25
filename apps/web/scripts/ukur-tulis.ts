@@ -3,7 +3,13 @@
  *
  * Semua permintaan memakai jalur yang DITOLAK validasi (sama seperti
  * `verifikasi-tulis.ts`) sehingga aman dijalankan berulang — termasuk terhadap
- * produksi. Yang diukur adalah rangkaian `currentUser → (baca baris) → batch
+ * produksi. Dua lapis pengaman, jangan dihapus:
+ *   1. `jumlah` diturunkan dari saldo segar (`saldo + 1`, minimal 1) sehingga
+ *      penolakan dijamin terjadi — tidak ada angka tetap besar yang bisa lolos
+ *      bila saldo suatu hari melampaui angka itu;
+ *   2. status tiap respons wajib cocok dengan yang diharapkan — kalau tidak,
+ *      skrip keluar 1 dan menandai kemungkinan tulisan tak terencana.
+ * Yang diukur adalah rangkaian `currentUser → (baca baris) → batch
  * validasi`, yaitu persis bagian yang diparalelkan; langkah `insert` yang
  * konstan pada kedua versi tidak ikut terukur di sini.
  *
@@ -17,11 +23,11 @@
  */
 import { sql } from 'drizzle-orm';
 import { db, dompet, kategori, tagihan, transaksi, utang } from 'db';
+import { saldoDompet } from '../src/lib/server/saldo';
 
 const BASE = process.env.BASE || 'http://localhost:5173';
 const SESSION = process.env.SESSION;
 const PUTARAN = Math.max(1, Number(process.argv[2] || 6));
-const RAKSASA = 999_999_999;
 
 if (!SESSION) {
 	console.error('Env SESSION wajib diisi (nilai cookie `session`).');
@@ -72,24 +78,35 @@ if (!dompetAktif || !kategoriKeluar || !trxAda) {
 	console.error('Prasyarat tidak lengkap (dompet/kategori/transaksi kosong) — dibatalkan.');
 	process.exit(1);
 }
+// Dijamin ditolak: jumlah > saldo selamanya (saldo + 1, minimal 1 supaya lolos
+// validasi `jumlah >= 1` pun tetap melebihi saldo yang bisa negatif).
+const saldoAktif = await saldoDompet(db, dompetAktif.id);
+const jumlahTolak = Math.max(1, saldoAktif + 1);
 
-type Kasus = { nama: string; jalan: () => Promise<{ ms: number; dur: number | null; status: number }> };
+type Kasus = {
+	nama: string;
+	/** Status wajib; selain itu berarti tulisan tak terencana mungkin terjadi. */
+	hap: number;
+	jalan: () => Promise<{ ms: number; dur: number | null; status: number }>;
+};
 
 const kasus: Kasus[] = [
 	{
 		nama: 'POST /api/transaksi (tolak saldo)',
+		hap: 400,
 		jalan: () =>
 			kirim('POST', '/api/transaksi', {
 				tanggal: `${bulan}-01`,
 				tipe: 'keluar',
 				id_dompet: dompetAktif.id,
 				id_kategori: kategoriKeluar.id,
-				jumlah: RAKSASA,
+				jumlah: jumlahTolak,
 				catatan: 'ukur-tulis'
 			})
 	},
 	{
 		nama: 'PATCH /api/transaksi/[id] (tolak dompet)',
+		hap: 400,
 		jalan: () =>
 			kirim('PATCH', `/api/transaksi/${trxAda.id}`, {
 				tanggal: `${bulan}-01`,
@@ -102,12 +119,13 @@ const kasus: Kasus[] = [
 	},
 	{
 		nama: 'POST /api/transfer (tolak saldo asal)',
+		hap: 400,
 		jalan: () =>
 			kirim('POST', '/api/transfer', {
 				tanggal: `${bulan}-01`,
 				id_dompet_asal: dompetAktif.id,
 				id_dompet_tujuan: (dompetLain ?? dompetAktif).id,
-				jumlah: RAKSASA,
+				jumlah: jumlahTolak,
 				catatan: 'ukur-tulis'
 			})
 	}
@@ -116,6 +134,7 @@ const kasus: Kasus[] = [
 if (utangAda) {
 	kasus.push({
 		nama: 'POST /api/utang/[id]/bayar (tolak OVERPAY)',
+		hap: 400,
 		jalan: () =>
 			kirim('POST', `/api/utang/${utangAda.id}/bayar`, {
 				jumlah: utangAda.jumlah - utangAda.terbayar + 1,
@@ -126,6 +145,7 @@ if (utangAda) {
 if (tagihanAda) {
 	kasus.push({
 		nama: 'POST /api/tagihan/[id]/bayar (tolak dompet)',
+		hap: 400,
 		jalan: () =>
 			kirim('POST', `/api/tagihan/${tagihanAda.id}/bayar`, { bulan: bulanDepan, id_dompet: 999_999 })
 	});
@@ -133,11 +153,13 @@ if (tagihanAda) {
 if (dompetLain) {
 	kasus.push({
 		nama: 'PATCH /api/dompet/[id] (tolak nama bentrok)',
+		hap: 409,
 		jalan: () => kirim('PATCH', `/api/dompet/${dompetLain.id}`, { nama_dompet: dompetAktif.nama })
 	});
 }
 
 console.log(`BASE=${BASE}  putaran=${PUTARAN}  (semua permintaan DITOLAK — nol tulisan)`);
+let gagal = 0;
 for (const k of kasus) {
 	const total: number[] = [];
 	const dur: number[] = [];
@@ -150,5 +172,19 @@ for (const k of kasus) {
 	}
 	const d = dur.length ? `  dur: ${statistik(dur)} ms` : '  dur: (tanpa Server-Timing)';
 	console.log(`${k.nama}\n    total: ${statistik(total)} ms${d}  [${status}]`);
+	if (status !== k.hap) {
+		gagal++;
+		console.error(
+			`    GAGAL — status ${status}, seharusnya ${k.hap}` +
+				(status >= 200 && status < 300
+					? '  <<< 2xx: tulisan mungkin terjadi, PERIKSA DATA!'
+					: '')
+		);
+	}
 }
+if (gagal) {
+	console.error(`\nFAIL — ${gagal} kasus berstatus tak terduga.`);
+	process.exit(1);
+}
+console.log('\nPASS — semua permintaan ditolak sesuai harapan (nol tulisan).');
 process.exit(0);
