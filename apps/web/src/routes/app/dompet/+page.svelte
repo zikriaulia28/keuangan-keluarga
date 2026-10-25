@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { api, rupiah } from '$lib/api';
+	import { lihatAngka } from '$lib/lihat-saldo.svelte';
 	import RupiahInput from '$lib/components/RupiahInput.svelte';
 	let { data } = $props();
 
@@ -194,7 +195,7 @@
 	<section class="card mt-4 p-5 md:p-6">
 		<p class="label">Total saldo semua dompet</p>
 		<div class="figure mt-1.5 text-[clamp(2.25rem,11vw,3.25rem)] {totalSaldo < 0 ? 'text-alert' : 'text-ink'}">
-			{rupiah(totalSaldo)}
+			{lihatAngka(totalSaldo)}
 		</div>
 
 		<div class="mt-4 flex flex-wrap items-center gap-2">
@@ -390,7 +391,7 @@
 								{/if}
 							</div>
 							<p class="amount money text-[19px] font-extrabold {d.saldo < 0 ? 'text-alert' : ''}">
-								{rupiah(d.saldo)}
+								{lihatAngka(d.saldo)}
 							</p>
 						</div>
 

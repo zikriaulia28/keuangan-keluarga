@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api, rupiah } from '$lib/api';
+	import { lihatAngka } from '$lib/lihat-saldo.svelte';
 
 	let { data } = $props();
 
@@ -278,14 +279,14 @@
 		<section class="card mt-4 p-5 md:p-6">
 			<p class="label">Sisa bulan ini</p>
 			<div class="figure mt-1.5 text-[clamp(2.25rem,11vw,3.5rem)] {ringkasan.sisa < 0 ? 'text-alert' : 'text-ink'}">
-				{rupiah(ringkasan.sisa)}
+				{lihatAngka(ringkasan.sisa)}
 			</div>
 
 			{#if ringkasan.masuk > 0}
 				<div class="mt-4">
 					<div class="flex items-baseline justify-between gap-3 text-[13px]">
 						<span class="font-semibold text-ink-2">{persenKeluar}% sudah keluar</span>
-						<span class="money font-semibold text-ink-3">dari {rupiah(ringkasan.masuk)}</span>
+						<span class="money font-semibold text-ink-3">dari {lihatAngka(ringkasan.masuk)}</span>
 					</div>
 					<div class="meter mt-2">
 						<span style="width:{persenKeluar}%" data-over={persenKeluar >= 100}></span>
@@ -302,14 +303,14 @@
 		<section class="mt-3 grid grid-cols-2 gap-3">
 			<div class="card p-4">
 				<p class="label">Masuk</p>
-				<p class="money mt-1 text-[19px] font-extrabold text-accent-ink">{rupiah(ringkasan.masuk)}</p>
+				<p class="money mt-1 text-[19px] font-extrabold text-accent-ink">{lihatAngka(ringkasan.masuk)}</p>
 				{#if trenMasuk !== null}
 					<p class="money mt-0.5 text-[12px] text-ink-3">{formatPersen(trenMasuk)} dari bulan lalu</p>
 				{/if}
 			</div>
 			<div class="card p-4">
 				<p class="label">Keluar</p>
-				<p class="money mt-1 text-[19px] font-extrabold text-alert">{rupiah(ringkasan.keluar)}</p>
+				<p class="money mt-1 text-[19px] font-extrabold text-alert">{lihatAngka(ringkasan.keluar)}</p>
 				{#if trenKeluar !== null}
 					<p class="money mt-0.5 text-[12px] text-ink-3">{formatPersen(trenKeluar)} dari bulan lalu</p>
 				{/if}
@@ -322,7 +323,7 @@
 				<p class="label">Saldo semua dompet</p>
 				<p class="mt-0.5 text-[12px] text-ink-3">{ringkasan.dompet.length} dompet</p>
 			</div>
-			<p class="money text-[19px] font-extrabold">{rupiah(totalSaldo)}</p>
+			<p class="money text-[19px] font-extrabold">{lihatAngka(totalSaldo)}</p>
 		</section>
 
 		{#if kosong}

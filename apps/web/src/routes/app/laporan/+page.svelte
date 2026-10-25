@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { angka, api, rupiah } from '$lib/api';
+	import { lihatAngka } from '$lib/lihat-saldo.svelte';
 	import { mom, namaBulanTahun } from '$lib/format';
 	import RekapKategori from '$lib/components/RekapKategori.svelte';
 
@@ -147,9 +148,9 @@
 		const tenggang = bulanTren.reduce((a, b) => (b.sisa > a.sisa ? b : a));
 		const selisih = l.masuk - l.keluar;
 		return [
-			`${selisih >= 0 ? 'Surplus' : 'Defisit'} ${rupiah(Math.abs(selisih))} selama ${total} bulan.`,
-			`Rata-rata ${rupiah(Math.round(l.masuk / total))} masuk dan ${rupiah(Math.round(l.keluar / total))} keluar per bulan.`,
-			`Keluar terbanyak ${tersibuk.label} (${rupiah(tersibuk.keluar)}), paling hemat ${tenggang.label} (sisa ${rupiah(tenggang.sisa)}).`
+			`${selisih >= 0 ? 'Surplus' : 'Defisit'} ${lihatAngka(Math.abs(selisih))} selama ${total} bulan.`,
+			`Rata-rata ${lihatAngka(Math.round(l.masuk / total))} masuk dan ${lihatAngka(Math.round(l.keluar / total))} keluar per bulan.`,
+			`Keluar terbanyak ${tersibuk.label} (${lihatAngka(tersibuk.keluar)}), paling hemat ${tenggang.label} (sisa ${lihatAngka(tenggang.sisa)}).`
 		].join(' ');
 	});
 
@@ -437,19 +438,19 @@
 		<section class="print:hidden mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
 			<div class="card p-4">
 				<p class="label">Saldo awal</p>
-				<p class="money mt-1 text-[17px] font-extrabold">{rupiah(laporan.saldoAwal)}</p>
+				<p class="money mt-1 text-[17px] font-extrabold">{lihatAngka(laporan.saldoAwal)}</p>
 			</div>
 			<div class="card p-4">
 				<p class="label">Masuk</p>
-				<p class="money mt-1 text-[17px] font-extrabold text-accent-ink">{rupiah(laporan.masuk)}</p>
+				<p class="money mt-1 text-[17px] font-extrabold text-accent-ink">{lihatAngka(laporan.masuk)}</p>
 			</div>
 			<div class="card p-4">
 				<p class="label">Keluar</p>
-				<p class="money mt-1 text-[17px] font-extrabold text-alert">{rupiah(laporan.keluar)}</p>
+				<p class="money mt-1 text-[17px] font-extrabold text-alert">{lihatAngka(laporan.keluar)}</p>
 			</div>
 			<div class="card p-4">
 				<p class="label">Saldo akhir</p>
-				<p class="money mt-1 text-[17px] font-extrabold">{rupiah(laporan.saldoAkhir)}</p>
+				<p class="money mt-1 text-[17px] font-extrabold">{lihatAngka(laporan.saldoAkhir)}</p>
 			</div>
 		</section>
 
@@ -460,10 +461,10 @@
 			{@const pk = mom(laporan.keluar, laporan.sebelumnya.keluar)}
 			<div class="print:hidden mt-3 flex flex-wrap gap-x-6 gap-y-1 text-[13px] text-ink-2">
 				<span>
-					Masuk {tandaMom(pm)} <span class="text-ink-3">vs {rupiah(laporan.sebelumnya.masuk)}</span>
+					Masuk {tandaMom(pm)} <span class="text-ink-3">vs {lihatAngka(laporan.sebelumnya.masuk)}</span>
 				</span>
 				<span>
-					Keluar {tandaMom(pk)} <span class="text-ink-3">vs {rupiah(laporan.sebelumnya.keluar)}</span>
+					Keluar {tandaMom(pk)} <span class="text-ink-3">vs {lihatAngka(laporan.sebelumnya.keluar)}</span>
 				</span>
 				<span class="w-full text-ink-3 sm:w-auto">
 					periode pembanding {bulanLabelDari(laporan.sebelumnya.dari, laporan.sebelumnya.sampai)}
@@ -615,8 +616,8 @@
 			</section>
 
 			<p class="print:hidden mt-4 text-center text-[12px] text-ink-3">
-				Saldo awal {rupiah(laporan.saldoAwal)} + masuk {rupiah(laporan.masuk)} &minus; keluar
-				{rupiah(laporan.keluar)} = saldo akhir {rupiah(laporan.saldoAkhir)}
+				Saldo awal {lihatAngka(laporan.saldoAwal)} + masuk {lihatAngka(laporan.masuk)} &minus; keluar
+				{lihatAngka(laporan.keluar)} = saldo akhir {lihatAngka(laporan.saldoAkhir)}
 			</p>
 		{/if}
 
