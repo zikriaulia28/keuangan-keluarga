@@ -10,6 +10,17 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-26-optimasi-latensi-query-design.md`
 
+> **Status eksekusi (diperbarui setelah run): SELURUH TASK SELESAI & TER-DEPLOY.**
+> Eksekusi Native di satu sesi, digabung jadi tiga batch komit lalu di-push bersama:
+> `b3d73ff` (Task 1 instrumen) → `8029fd2` (Task 2–4 sebagian: halaman + pool) →
+> `10030b9` (Task 5 jalur tulis) → `8796416` (laporan + GET tagihan) → push
+> `f46b682..8796416`. Pekerjaan susulan terpilih pemilik: `aa2a36a` (fix zona waktu),
+> `ec16a8a` (batch `PATCH /api/dompet`), `f0231c1` (instrumen tulis + `ukur-tulis.ts`)
+> → push `8796416..f0231c1`. Deviasi terhadap rencana asli dicatat di
+> **"Laporan eksekusi"** paling bawah; hasil ukur di spec §10 dan ledger
+> `.superpowers/sdd/2026-10-26-optimasi-latensi-query/progress.md`.
+> Checkbox di bawah adalah rencana ASLI — jangan ditandai ulang.
+
 ## Global Constraints
 
 - **Khusus kode.** Tidak ada perubahan setting Vercel, tidak pindah host/plan, tidak ada layanan atau dependensi baru (spec §3).
@@ -50,7 +61,10 @@ Lima hal yang kemungkinan besar menggigit orang yang memakai software ini, dan t
 | File | Tanggung jawab |
 |---|---|
 | `apps/web/src/lib/server/waktu.ts` | Dua fungsi mungil untuk header `Server-Timing`. Tidak ada logika lain. |
-| `apps/web/scripts/verifikasi-saldo.ts` | Uji orakel agregat saldo vs `saldoDompet`. Hanya-`SELECT`. |
+| ~~`apps/web/scripts/verifikasi-saldo.ts`~~ | **TIDAK PERNAH DIBUAT** (deviasi): fungsinya tercakup `verifikasi-dashboard` (orakel per id) + `banding` (diff response). |
+| `apps/web/scripts/verifikasi-dashboard.ts` | Jepitan perilaku `loadRingkasan`/`listTagihan`, orakel independen. PASS 26 cek. |
+| `apps/web/scripts/verifikasi-tulis.ts` | Uji negatif jalur tulis — 10 kasus, nol tulisan, isi `dompet` ikut dijaga. |
+| `apps/web/scripts/ukur-tulis.ts` | Ukur latensi jalur tulis via permintaan DITOLAK (aman untuk produksi). |
 | `apps/web/scripts/banding-respon.ts` | Rekam/bandingkan/ukur response JSON + timing (`simpan`, `banding`, `ukur`). |
 | `apps/web/.baseline/` (ter-ignore) | Hasil `simpan`. Tidak pernah di-commit. |
 
@@ -59,19 +73,23 @@ Lima hal yang kemungkinan besar menggigit orang yang memakai software ini, dan t
 | File | Perubahan |
 |---|---|
 | `.gitignore` | + `apps/web/.baseline/` |
-| `apps/web/src/lib/server/saldo.ts` | + `daftarDompetDenganSaldo` |
+| `apps/web/src/lib/server/saldo.ts` | + `saldoSemuaDompet` (sebelumnya dalam desain bernama `daftarDompetDenganSaldo`) |
 | `apps/web/src/lib/server/dashboard.ts` | `loadRingkasan` & `listTagihan` → satu `Promise.all` |
 | `packages/db/src/index.ts` | `max: 16` |
 | `apps/web/src/routes/app/+page.server.ts` | instrumen, label hop 6 → 2 |
 | `apps/web/src/routes/app/transaksi/+page.server.ts` | paralel, label 4 → 2 |
 | `apps/web/src/routes/app/tagihan/+page.server.ts` | paralel, label 4 → 2 |
+| `apps/web/src/routes/app/dompet/+page.server.ts` | pakai `saldoSemuaDompet` (di luar rencana awal) |
 | `apps/web/src/routes/api/ringkasan/+server.ts` | instrumen, label 6 → 2 |
 | `apps/web/src/routes/api/dompet/+server.ts` | pakai primitive, label 3 → 2 |
-| `apps/web/src/routes/api/tagihan/+server.ts` | `GET` → `Promise.all` (tanpa instrumen, sesuai daftar spec §5.5) |
-| `apps/web/src/routes/api/transaksi/+server.ts` | `GET` instrumen label 2 (tetap); `POST` → paralel |
-| `apps/web/src/routes/api/transaksi/[id]/+server.ts` | `PATCH` → paralel |
-| `apps/web/src/routes/api/utang/[id]/bayar/+server.ts` | validasi paralel |
-| `apps/web/src/routes/api/tagihan/[id]/bayar/+server.ts` | validasi paralel |
+| `apps/web/src/routes/api/dompet/[id]/+server.ts` | **(susulan)** batch dua cek `PATCH` + instrumen 4 hop |
+| `apps/web/src/routes/api/tagihan/+server.ts` | `GET` → `Promise.all` + instrumen 2 hop (label lama: tanpa instrumen) |
+| `apps/web/src/routes/api/laporan/+server.ts` | **(di luar rencana)** batch pembanding digabung, instrumen 2 hop, fix `iso()` |
+| `apps/web/src/routes/api/transaksi/+server.ts` | `GET` instrumen label 2 (tetap); `POST` → paralel + instrumen 3 hop |
+| `apps/web/src/routes/api/transaksi/[id]/+server.ts` | `PATCH` → paralel + instrumen 4 hop |
+| `apps/web/src/routes/api/transfer/+server.ts` | **(di luar rencana)** cek dompet + saldo → satu batch, instrumen 3 hop |
+| `apps/web/src/routes/api/utang/[id]/bayar/+server.ts` | validasi paralel + instrumen 5 hop |
+| `apps/web/src/routes/api/tagihan/[id]/bayar/+server.ts` | validasi paralel + instrumen 5 hop |
 
 ---
 
@@ -422,3 +440,45 @@ SESSION=<token cookie session> BASE=https://keuangan-keluarga-chi.vercel.app bun
 - [ ] **Step 6: Bandingkan dengan baseline Task 1 Step 9**
 
 Seluruh angka `dur` wajib turun dan seluruh label `desc` wajib cocok dengan tabel di Review Focus #5. Catat hasilnya di chat — inilah bahan keputusan apakah Pendekatan 2 (spec §9) layak dibayar.
+
+---
+
+## Laporan eksekusi (ditulis setelah run — bukan bagian rencana asli)
+
+**Semua task selesai, terverifikasi, dan ter-deploy.** Urutan komit nyata:
+
+| Komit | Isi | Push |
+|---|---|---|
+| `b3d73ff` | Task 1: instrumen + `banding-respon.ts` + `.gitignore` | bersama `8796416` |
+| `8029fd2` | Task 2–4 sebagian: `saldoSemuaDompet`, dashboard, halaman, pool 16 | bersama |
+| `10030b9` | Task 5: lima endpoint tulis paralel + `verifikasi-tulis.ts` | bersama |
+| `8796416` | laporan batch digabung + GET tagihan paralel | `f46b682..8796416` |
+| `aa2a36a` | fix zona waktu `iso()` (spec §9.1) | bersama `f0231c1` |
+| `ec16a8a` | batch `PATCH /api/dompet` + 3 kasus harness | bersama |
+| `f0231c1` | instrumen 6 endpoint tulis + `ukur-tulis.ts` | `8796416..f0231c1` |
+
+**Deviasi terhadap rencana asli:**
+
+1. **`verifikasi-saldo.ts` tidak pernah dibuat.** Orakel per-id malah jadi bagian dari
+   `verifikasi-dashboard.ts` (Task 3 Step 1), dan diff response lewat `banding` —
+   keduanya lebih menjanjikan karena memverifikasi perilaku utuh, bukan fungsi terisolir.
+2. **Cakupan melebar** (semua disetujui pemilik lewat question): batching `GET /api/laporan`,
+   `POST /api/transfer`, `app/dompet`, instrumen seluruh endpoint GET + tulis (spec §5.4),
+   batch `PATCH /api/dompet`, dan fix zona waktu `iso()`.
+3. **Push dua tahap, bukan satu** di Task 6: pertama `f46b682..8796416` (angka before/after
+   halaman), lalu `8796416..f0231c1` (susulan). Hanya `main` yang di-push — branch
+   `perf/optimasi-latensi` sengaja tidak di-push agar tidak memicu build preview kedua.
+4. **Insiden baseline `laporan`:** `banding` produksi sempat `BEDA` di `saldoAwal`
+   (743815 vs 631815) — ternyata zona waktu (spec §9.1), bukan regresi. Baseline
+   `.baseline/laporan.json` **direkam ulang dengan kode lama `b3d73ff` di bawah
+   `TZ=UTC`** supaya tetap sah sebagai pembanding "sebelum", lalu `banding` IDENTIK ×5
+   di lokal dan produksi. Sesudah fix `iso()`, dev di bawah WIB pun IDENTIK ×5 tanpa
+   perlu `TZ=UTC`.
+
+**Hasil verifikasi final (semua lulus):** `bun run check` 0 error / 27 warning ·
+`verifikasi-dashboard` PASS 26 cek · `verifikasi-tulis` PASS 10/10 (nol baris baru) ·
+`banding` IDENTIK ×5 lokal **dan** produksi · angka before/after di spec §10.
+
+**Sisa yang belum dipilih pemilik:** review reviewer segar + `finishing-a-development-branch`;
+naikkan pool 16 → 24; smoke test manual (spec §7); keputusan Pendekatan 2 (angka sudah
+ada di spec §10).
