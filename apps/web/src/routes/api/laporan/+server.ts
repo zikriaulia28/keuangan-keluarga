@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { db, dompet, kategori, transfer, transaksi, users } from 'db';
 import { currentUser } from '$lib/server/auth';
+import { header, mulai } from '$lib/server/waktu';
 
 const TGL = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 
@@ -91,6 +92,7 @@ const ARUS = (dari: string, sampai: string) => sql`
 	ORDER BY a.tanggal, a.sumber, a.urut, a.id_dompet`;
 
 export const GET: RequestHandler = async ({ cookies, url }) => {
+	const t0 = mulai();
 	const user = await currentUser(cookies);
 	if (!user) return json({ error: 'UNAUTHENTICATED' }, { status: 401 });
 
@@ -141,8 +143,11 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
 	const akhirSebelum = sebelum.toISOString().slice(0, 10);
 
 	const dalam = and(gte(transaksi.tanggal, dari), lte(transaksi.tanggal, sampai));
+	// Periode pembanding dihitung dari `dari`/`sampai` saja — tidak bergantung pada
+	// hasil query mana pun, jadi ikut masuk ke batch yang sama (hemat satu round trip).
+	const dalamLalu = and(gte(transaksi.tanggal, lalu.dari), lte(transaksi.tanggal, lalu.sampai));
 
-	const [masuk, keluar, tren, perKategori, perKategoriMasuk, daftarDompet, saldoAwal, saldoAkhir, koran, terbesar] =
+	const [masuk, keluar, tren, perKategori, perKategoriMasuk, daftarDompet, saldoAwal, saldoAkhir, koran, terbesar, jumlahLaluMasuk, jumlahLaluKeluar] =
 		await Promise.all([
 		db
 			.select({ n: sql<number>`COALESCE(SUM(${transaksi.jumlah}), 0)` })
@@ -212,18 +217,7 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
 			.leftJoin(users, eq(transaksi.userId, users.id))
 			.where(and(dalam, eq(transaksi.tipe, 'keluar')))
 			.orderBy(desc(transaksi.jumlah))
-			.limit(10)
-	]);
-
-	const totalMasuk = Number(masuk[0]?.n ?? 0);
-	const totalKeluar = Number(keluar[0]?.n ?? 0);
-	const petaAwal = new Map(saldoAwal.map((r) => [Number((r as { id: number }).id), Number((r as { saldo: number }).saldo)]));
-	const petaAkhir = new Map(saldoAkhir.map((r) => [Number((r as { id: number }).id), Number((r as { saldo: number }).saldo)]));
-	const saldoAwalTotal = [...petaAwal.values()].reduce((a, b) => a + b, 0);
-	const saldoAkhirTotal = [...petaAkhir.values()].reduce((a, b) => a + b, 0);
-
-	const dalamLalu = and(gte(transaksi.tanggal, lalu.dari), lte(transaksi.tanggal, lalu.sampai));
-	const [jumlahLaluMasuk, jumlahLaluKeluar] = await Promise.all([
+			.limit(10),
 		db
 			.select({ n: sql<number>`COALESCE(SUM(${transaksi.jumlah}), 0)` })
 			.from(transaksi)
@@ -233,6 +227,13 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
 			.from(transaksi)
 			.where(and(dalamLalu, eq(transaksi.tipe, 'keluar')))
 	]);
+
+	const totalMasuk = Number(masuk[0]?.n ?? 0);
+	const totalKeluar = Number(keluar[0]?.n ?? 0);
+	const petaAwal = new Map(saldoAwal.map((r) => [Number((r as { id: number }).id), Number((r as { saldo: number }).saldo)]));
+	const petaAkhir = new Map(saldoAkhir.map((r) => [Number((r as { id: number }).id), Number((r as { saldo: number }).saldo)]));
+	const saldoAwalTotal = [...petaAwal.values()].reduce((a, b) => a + b, 0);
+	const saldoAkhirTotal = [...petaAkhir.values()].reduce((a, b) => a + b, 0);
 
 	return json({
 		dari,
@@ -281,5 +282,5 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
 			pencatat: r.pencatat
 		})),
 		...(mauKoran ? { koran } : {})
-	});
+	}, { headers: { 'server-timing': header(t0, 2) } });
 };

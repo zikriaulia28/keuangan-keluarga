@@ -3,30 +3,39 @@ import type { RequestHandler } from './$types';
 import { eq } from 'drizzle-orm';
 import { db, kategori, tagihan, tagihanBayar } from 'db';
 import { currentUser } from '../../../lib/server/auth';
+import { header, mulai } from '$lib/server/waktu';
 
 const BULAN = /^[0-9]{4}-[0-9]{2}$/;
 
 export const GET: RequestHandler = async ({ cookies, url }) => {
+  const t0 = mulai();
   const user = await currentUser(cookies);
   if (!user) return json({ error: 'UNAUTHENTICATED' }, { status: 401 });
   const bulan = url.searchParams.get('bulan') || new Date().toISOString().slice(0, 7);
   if (!BULAN.test(bulan)) return json({ error: 'INVALID_MONTH' }, { status: 400 });
-  const list = await db
-    .select({
-      id: tagihan.id,
-      nama: tagihan.nama,
-      jumlah: tagihan.jumlah,
-      hari: tagihan.hari,
-      catatan: tagihan.catatan,
-      kategori: kategori.nama,
-    })
-    .from(tagihan)
-    .innerJoin(kategori, eq(tagihan.kategoriId, kategori.id))
-    .orderBy(tagihan.hari, tagihan.nama);
-  const sudah = await db.select().from(tagihanBayar).where(eq(tagihanBayar.bulan, bulan));
+  // Satu batch: daftar tagihan dan status pembayarannya tidak saling bergantung.
+  const [list, sudah] = await Promise.all([
+    db
+      .select({
+        id: tagihan.id,
+        nama: tagihan.nama,
+        jumlah: tagihan.jumlah,
+        hari: tagihan.hari,
+        catatan: tagihan.catatan,
+        kategori: kategori.nama,
+      })
+      .from(tagihan)
+      .innerJoin(kategori, eq(tagihan.kategoriId, kategori.id))
+      .orderBy(tagihan.hari, tagihan.nama),
+    db.select().from(tagihanBayar).where(eq(tagihanBayar.bulan, bulan)),
+  ]);
   const lunas: Record<number, true> = {};
   for (const s of sudah) lunas[s.tagihanId] = true;
-  return json(list.map((r) => ({ ...r, lunas: lunas[r.id] === true })));
+  // 2 hop: currentUser → satu batch.
+  return json(
+    list.map((r) => ({ ...r, lunas: lunas[r.id] === true })),
+    { headers: { 'server-timing': header(t0, 2) } },
+  );
 };
 
 export const POST: RequestHandler = async ({ cookies, request }) => {

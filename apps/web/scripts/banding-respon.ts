@@ -39,13 +39,24 @@ if (!/^[0-9]{4}-[0-9]{2}$/.test(BULAN)) {
 	process.exit(1);
 }
 
-/** Empat endpoint pembanding (lihat spesifikasi §7). */
+/** Lima endpoint pembanding (lihat spesifikasi §7 + laporan). */
 const endpoint = [
 	{ nama: 'dompet', path: '/api/dompet' },
 	{ nama: 'ringkasan', path: `/api/ringkasan?bulan=${BULAN}` },
 	{ nama: 'transaksi', path: '/api/transaksi?limit=500' },
-	{ nama: 'tagihan', path: `/api/tagihan?bulan=${BULAN}` }
+	{ nama: 'tagihan', path: `/api/tagihan?bulan=${BULAN}` },
+	{
+		nama: 'laporan',
+		path: `/api/laporan?dari=${BULAN}-01&sampai=${akhirBulan(BULAN)}`
+	}
 ] as const;
+
+/** Hari terakhir bulan `YYYY-MM` sebagai `YYYY-MM-DD`. */
+function akhirBulan(b: string): string {
+	const [y, m] = b.split('-').map(Number);
+	const hari = new Date(y, m, 0).getDate();
+	return `${b}-${String(hari).padStart(2, '0')}`;
+}
 
 type Hasil = {
 	nama: string;
