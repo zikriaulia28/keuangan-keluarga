@@ -20,9 +20,8 @@ export const load: PageServerLoad = async ({ cookies, url, setHeaders }) => {
 		listUtangAktif()
 	]);
 
-	// 3 hop: currentUser → batch(loadRingkasan ∥ listTagihan ∥ utang); listTagihan
-	// sendiri masih 2 query berurutan sehingga jadi jalur terpanjang.
-	setHeaders({ 'server-timing': header(t0, 3) });
+	// 2 hop: currentUser → satu batch; seluruh query di dalamnya paralel.
+	setHeaders({ 'server-timing': header(t0, 2) });
 
 	return { bulan, ringkasan, tagihan, utang, namaPengguna: user.username };
 };

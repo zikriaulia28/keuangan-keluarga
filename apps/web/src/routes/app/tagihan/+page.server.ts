@@ -17,7 +17,7 @@ export const load: PageServerLoad = async ({ cookies, url, setHeaders }) => {
 	const param = url.searchParams.get('bulan');
 	const bulan = param && BULAN.test(param) ? param : bulanBerjalan();
 
-	const [list, kat, daftarDompet, sudah] = await Promise.all([
+	const [list, kat, daftarDompet, sudah, saldoSemua] = await Promise.all([
 		db
 			.select({
 				id: tagihan.id,
@@ -39,7 +39,8 @@ export const load: PageServerLoad = async ({ cookies, url, setHeaders }) => {
 			.from(tagihanBayar)
 			.innerJoin(transaksi, eq(tagihanBayar.transaksiId, transaksi.id))
 			.innerJoin(dompet, eq(transaksi.dompetId, dompet.id))
-			.where(eq(tagihanBayar.bulan, bulan))
+			.where(eq(tagihanBayar.bulan, bulan)),
+		saldoSemuaDompet(db)
 	]);
 
 	const lunas: Record<number, true> = {};
@@ -50,7 +51,6 @@ export const load: PageServerLoad = async ({ cookies, url, setHeaders }) => {
 	}
 	const daftar = list.map((r) => ({ ...r, lunas: lunas[r.id] === true }));
 
-	const [saldoSemua] = await Promise.all([saldoSemuaDompet(db)]);
 	const dompets = daftarDompet.map((d) => ({
 		id_dompet: d.id,
 		nama_dompet: d.nama,
@@ -62,8 +62,8 @@ export const load: PageServerLoad = async ({ cookies, url, setHeaders }) => {
 		for (const t of daftar) dompetPilih[t.id] = String(dompets[0].id_dompet);
 	}
 
-	// 3 hop: currentUser → batch 4 query → saldoSemuaDompet (terpisah).
-	setHeaders({ 'server-timing': header(t0, 3) });
+	// 2 hop: currentUser → satu batch seluruh query (termasuk saldo & pembayaran).
+	setHeaders({ 'server-timing': header(t0, 2) });
 
 	return { bulan, role: user.role, daftar, kategoris: kat, dompets, dompetPilih, via };
 };

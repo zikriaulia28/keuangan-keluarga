@@ -103,19 +103,21 @@ export async function loadRingkasan(bulan: string) {
 
 /** Daftar tagihan + status lunas bulan berjalan. */
 export async function listTagihan(bulan: string) {
-	const list = await db
-		.select({
-			id: tagihan.id,
-			nama: tagihan.nama,
-			jumlah: tagihan.jumlah,
-			hari: tagihan.hari,
-			catatan: tagihan.catatan,
-			kategori: kategori.nama
-		})
-		.from(tagihan)
-		.innerJoin(kategori, eq(tagihan.kategoriId, kategori.id))
-		.orderBy(tagihan.hari, tagihan.nama);
-	const sudah = await db.select().from(tagihanBayar).where(eq(tagihanBayar.bulan, bulan));
+	const [list, sudah] = await Promise.all([
+		db
+			.select({
+				id: tagihan.id,
+				nama: tagihan.nama,
+				jumlah: tagihan.jumlah,
+				hari: tagihan.hari,
+				catatan: tagihan.catatan,
+				kategori: kategori.nama
+			})
+			.from(tagihan)
+			.innerJoin(kategori, eq(tagihan.kategoriId, kategori.id))
+			.orderBy(tagihan.hari, tagihan.nama),
+		db.select().from(tagihanBayar).where(eq(tagihanBayar.bulan, bulan))
+	]);
 	const lunas: Record<number, true> = {};
 	for (const s of sudah) lunas[s.tagihanId] = true;
 	return list.map((r) => ({ ...r, lunas: lunas[r.id] === true }));

@@ -18,7 +18,23 @@ export const load: PageServerLoad = async ({ cookies, setHeaders }) => {
 	const dari = `${bulan}-01`;
 	const sampai = `${bulan}-${String(akhir).padStart(2, '0')}`;
 
-	const [daftarDompet, katMasuk, katKeluar, rows, saldoSemua] = await Promise.all([
+	// Rentang tanggal, bukan substring(): substring() tidak bisa memakai index tanggal.
+	const sum = async (tipe: 'masuk' | 'keluar') => {
+		const r = await db
+			.select({ n: sql<number>`COALESCE(SUM(${transaksi.jumlah}), 0)` })
+			.from(transaksi)
+			.where(
+				and(
+					eq(transaksi.tipe, tipe),
+					gte(transaksi.tanggal, dari),
+					lte(transaksi.tanggal, sampai)
+				)
+			);
+		return Number(r[0]?.n ?? 0);
+	};
+
+	const [daftarDompet, katMasuk, katKeluar, rows, saldoSemua, statMasuk, statKeluar] =
+		await Promise.all([
 		db.select().from(dompet).where(eq(dompet.arsip, false)).orderBy(dompet.nama),
 		db.select().from(kategori).where(eq(kategori.tipe, 'masuk')).orderBy(kategori.nama),
 		db.select().from(kategori).where(eq(kategori.tipe, 'keluar')).orderBy(kategori.nama),
@@ -41,7 +57,9 @@ export const load: PageServerLoad = async ({ cookies, setHeaders }) => {
 			.innerJoin(users, eq(transaksi.userId, users.id))
 			.orderBy(desc(transaksi.tanggal), desc(transaksi.id))
 			.limit(100),
-		saldoSemuaDompet(db)
+		saldoSemuaDompet(db),
+		sum('masuk'),
+		sum('keluar')
 	]);
 	const daftar = rows.map((r) => ({ ...r, tipe: r.tipe as 'masuk' | 'keluar' }));
 
@@ -51,24 +69,8 @@ export const load: PageServerLoad = async ({ cookies, setHeaders }) => {
 		saldo: saldoSemua.get(d.id) ?? 0
 	}));
 
-	// Rentang tanggal, bukan substring(): substring() tidak bisa memakai index tanggal.
-	const sum = async (tipe: 'masuk' | 'keluar') => {
-		const r = await db
-			.select({ n: sql<number>`COALESCE(SUM(${transaksi.jumlah}), 0)` })
-			.from(transaksi)
-			.where(
-				and(
-					eq(transaksi.tipe, tipe),
-					gte(transaksi.tanggal, dari),
-					lte(transaksi.tanggal, sampai)
-				)
-			);
-		return Number(r[0]?.n ?? 0);
-	};
-	const [statMasuk, statKeluar] = await Promise.all([sum('masuk'), sum('keluar')]);
-
-	// 3 hop: currentUser → batch 5 query → batch 2 statistik bulanan.
-	setHeaders({ 'server-timing': header(t0, 3) });
+	// 2 hop: currentUser → satu batch seluruh query (termasuk statistik bulanan).
+	setHeaders({ 'server-timing': header(t0, 2) });
 
 	return { dompet: dompetOut, kategoriMasuk: katMasuk, kategoriKeluar: katKeluar, daftar, statMasuk, statKeluar };
 };
