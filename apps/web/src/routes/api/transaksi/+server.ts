@@ -95,11 +95,18 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
   ) {
     return json({ error: 'INVALID_TRANSACTION' }, { status: 400 });
   }
-  const d = await db.select().from(dompet).where(eq(dompet.id, body.id_dompet)).limit(1);
+  // Satu batch: dompet, kategori, dan saldo dibaca bersamaan. Urutan pemeriksaan
+  // TIDAK berubah (dompet → kategori → saldo) dan semuanya tetap sebelum insert —
+  // baris itulah penjaga invariant saldo anti-minus.
+  const perluCekSaldo = body.tipe === 'keluar';
+  const [d, k, saldo] = await Promise.all([
+    db.select().from(dompet).where(eq(dompet.id, body.id_dompet)).limit(1),
+    db.select().from(kategori).where(eq(kategori.id, body.id_kategori)).limit(1),
+    perluCekSaldo ? saldoDompet(db, body.id_dompet) : Promise.resolve(0),
+  ]);
   if (!d[0]) return json({ error: 'INVALID_WALLET' }, { status: 400 });
-  const k = await db.select().from(kategori).where(eq(kategori.id, body.id_kategori)).limit(1);
   if (!k[0] || k[0].tipe !== body.tipe) return json({ error: 'INVALID_CATEGORY' }, { status: 400 });
-  if (body.tipe === 'keluar' && body.jumlah > (await saldoDompet(db, body.id_dompet))) {
+  if (perluCekSaldo && body.jumlah > saldo) {
     return json({ error: 'INSUFFICIENT_BALANCE' }, { status: 400 });
   }
   const ins = (

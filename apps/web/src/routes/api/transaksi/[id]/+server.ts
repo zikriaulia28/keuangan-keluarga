@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { eq } from 'drizzle-orm';
 import { db, dompet, kategori, transaksi } from 'db';
 import { currentUser } from '$lib/server/auth';
-import { saldoDompet, saldoSemuaDompet } from '$lib/server/saldo';
+import { saldoSemuaDompet } from '$lib/server/saldo';
 
 const TGL = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const efek = (tipe: string, jumlah: number) => (tipe === 'masuk' ? jumlah : -jumlah);
@@ -57,17 +57,19 @@ export const PATCH: RequestHandler = async ({ request, cookies, params }) => {
 	) {
 		return json({ error: 'INVALID_TRANSACTION' }, { status: 400 });
 	}
-	const d = await db.select().from(dompet).where(eq(dompet.id, body.id_dompet)).limit(1);
-	if (!d[0]) return json({ error: 'INVALID_WALLET' }, { status: 400 });
-	const k = await db.select().from(kategori).where(eq(kategori.id, body.id_kategori)).limit(1);
-	if (!k[0] || k[0].tipe !== body.tipe) return json({ error: 'INVALID_CATEGORY' }, { status: 400 });
-	// Satu pembacaan saldo untuk dompet tujuan dan dompet asal sekaligus, bukan dua
-	// round-trip berurutan. Pindah dompet butuh keduanya; dompet sama cukup satu.
+	// Satu batch: dompet tujuan, kategori, dan saldo semua dompet dibaca bersamaan.
+	// `saldoSemuaDompet` dipakai alih-alih `saldoDompet` karena tidak bergantung
+	// pada hasil query lain — persis satu round trip, berlaku untuk kedua kasus
+	// (pindah dompet maupun tidak). Urutan cek tetap dompet → kategori → saldo,
+	// semuanya sebelum `db.update`.
 	const perluAsal = lama.dompetId !== body.id_dompet;
-	const saldo = await (perluAsal
-		? saldoSemuaDompet(db)
-		: Promise.resolve(new Map([[body.id_dompet, await saldoDompet(db, body.id_dompet)]]))
-	);
+	const [d, k, saldo] = await Promise.all([
+		db.select().from(dompet).where(eq(dompet.id, body.id_dompet)).limit(1),
+		db.select().from(kategori).where(eq(kategori.id, body.id_kategori)).limit(1),
+		saldoSemuaDompet(db)
+	]);
+	if (!d[0]) return json({ error: 'INVALID_WALLET' }, { status: 400 });
+	if (!k[0] || k[0].tipe !== body.tipe) return json({ error: 'INVALID_CATEGORY' }, { status: 400 });
 	const saldoBaru =
 		(saldo.get(body.id_dompet) ?? 0) -
 		(perluAsal ? efek(lama.tipe, lama.jumlah) : 0) +

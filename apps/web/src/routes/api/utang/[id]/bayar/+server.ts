@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { eq } from 'drizzle-orm';
 import { db, dompet, kategori, transaksi, utang } from 'db';
 import { currentUser } from '../../../../../lib/server/auth';
-import { saldoDompet } from '../../../../../lib/server/saldo';
+import { saldoSemuaDompet } from '../../../../../lib/server/saldo';
 const TGL = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 
 export const POST: RequestHandler = async ({ cookies, request, params }) => {
@@ -29,24 +29,29 @@ export const POST: RequestHandler = async ({ cookies, request, params }) => {
   if (jumlah > sisa) return json({ error: 'OVERPAY' }, { status: 400 });
   // Bayar utang = uang keluar; terima piutang = uang masuk. Catat otomatis.
   // Tanpa id_dompet, jatuh ke dompet aktif pertama.
-  const kandidat = await db
-    .select()
-    .from(dompet)
-    .where(id_dompet === undefined ? eq(dompet.arsip, false) : eq(dompet.id, id_dompet))
-    .orderBy(dompet.id)
-    .limit(1);
-  const d = kandidat[0];
-  if (!d) return json({ error: 'NO_WALLET' }, { status: 400 });
+  // Satu batch: pemilihan dompet, kategori, dan saldo dibaca bersamaan.
+  // `saldoSemuaDompet` menggantikan `saldoDompet(d.id)` karena tidak bergantung
+  // pada dompet yang belum terpilih — tetap satu round trip.
   const tipe = row.arah === 'utang' ? 'keluar' : 'masuk';
-  if (tipe === 'keluar' && jumlah > (await saldoDompet(db, d.id)))
-    return json({ error: 'INSUFFICIENT_BALANCE' }, { status: 400 });
-  const k = (
-    await db
+  const [kandidat, kList, saldoSemua] = await Promise.all([
+    db
+      .select()
+      .from(dompet)
+      .where(id_dompet === undefined ? eq(dompet.arsip, false) : eq(dompet.id, id_dompet))
+      .orderBy(dompet.id)
+      .limit(1),
+    db
       .select()
       .from(kategori)
       .where(eq(kategori.nama, row.arah === 'utang' ? 'Bayar Utang' : 'Terima Piutang'))
-      .limit(10)
-  ).find((r) => r.tipe === tipe);
+      .limit(10),
+    saldoSemuaDompet(db),
+  ]);
+  const d = kandidat[0];
+  if (!d) return json({ error: 'NO_WALLET' }, { status: 400 });
+  if (tipe === 'keluar' && jumlah > (saldoSemua.get(d.id) ?? 0))
+    return json({ error: 'INSUFFICIENT_BALANCE' }, { status: 400 });
+  const k = kList.find((r) => r.tipe === tipe);
   if (!k) return json({ error: 'MISSING_CATEGORY' }, { status: 400 });
   const today = new Date().toISOString().slice(0, 10);
   await db.insert(transaksi).values({

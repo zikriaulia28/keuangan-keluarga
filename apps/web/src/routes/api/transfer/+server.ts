@@ -69,13 +69,19 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
   if (body.id_dompet_asal === body.id_dompet_tujuan) {
     return json({ error: 'SAME_WALLET' }, { status: 400 });
   }
-  const cek = await db
-    .select({ id: dompet.id, arsip: dompet.arsip })
-    .from(dompet)
-    .where(or(eq(dompet.id, body.id_dompet_asal), eq(dompet.id, body.id_dompet_tujuan)));
+  // Satu batch: cek kedua dompet dan saldo asal dibaca bersamaan. Urutan
+  // penolakan tidak berubah (INVALID_WALLET → WALLET_ARCHIVED →
+  // INSUFFICIENT_BALANCE), semuanya sebelum insert.
+  const [cek, saldoAsal] = await Promise.all([
+    db
+      .select({ id: dompet.id, arsip: dompet.arsip })
+      .from(dompet)
+      .where(or(eq(dompet.id, body.id_dompet_asal), eq(dompet.id, body.id_dompet_tujuan))),
+    saldoDompet(db, body.id_dompet_asal),
+  ]);
   if (cek.length !== 2) return json({ error: 'INVALID_WALLET' }, { status: 400 });
   if (cek.some((d) => d.arsip)) return json({ error: 'WALLET_ARCHIVED' }, { status: 400 });
-  if (body.jumlah > (await saldoDompet(db, body.id_dompet_asal))) {
+  if (body.jumlah > saldoAsal) {
     return json({ error: 'INSUFFICIENT_BALANCE' }, { status: 400 });
   }
   const ins = (

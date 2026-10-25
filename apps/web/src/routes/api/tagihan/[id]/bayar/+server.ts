@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { and, eq } from 'drizzle-orm';
 import { db, dompet, tagihan, tagihanBayar, transaksi } from 'db';
 import { currentUser } from '../../../../../lib/server/auth';
-import { saldoDompet } from '../../../../../lib/server/saldo';
+import { saldoSemuaDompet } from '../../../../../lib/server/saldo';
 const BULAN = /^[0-9]{4}-[0-9]{2}$/;
 const TGL = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 
@@ -22,19 +22,22 @@ export const POST: RequestHandler = async ({ cookies, request, params }) => {
     typeof body?.bulan === 'string' && BULAN.test(body.bulan)
       ? body.bulan
       : new Date().toISOString().slice(0, 7);
-  const ada = (
-    await db
+  // Satu batch: cek keberadaan pembayaran, dompet, dan saldo dibaca bersamaan.
+  // Urutan penolakan tidak berubah: ALREADY_PAID → INVALID_WALLET →
+  // INSUFFICIENT_BALANCE, semuanya sebelum insert transaksi.
+  const [ada, dRow, saldoSemua] = await Promise.all([
+    db
       .select()
       .from(tagihanBayar)
       .where(and(eq(tagihanBayar.tagihanId, row.id), eq(tagihanBayar.bulan, bulan)))
-      .limit(1)
-  )[0];
-  if (ada) return json({ error: 'ALREADY_PAID' }, { status: 409 });
-  const d = (
-    await db.select().from(dompet).where(eq(dompet.id, Number(body?.id_dompet))).limit(1)
-  )[0];
+      .limit(1),
+    db.select().from(dompet).where(eq(dompet.id, Number(body?.id_dompet))).limit(1),
+    saldoSemuaDompet(db),
+  ]);
+  if (ada[0]) return json({ error: 'ALREADY_PAID' }, { status: 409 });
+  const d = dRow[0];
   if (!d) return json({ error: 'INVALID_WALLET' }, { status: 400 });
-  if (row.jumlah > (await saldoDompet(db, d.id)))
+  if (row.jumlah > (saldoSemua.get(d.id) ?? 0))
     return json({ error: 'INSUFFICIENT_BALANCE' }, { status: 400 });
   const today = new Date().toISOString().slice(0, 10);
   const tr = (
