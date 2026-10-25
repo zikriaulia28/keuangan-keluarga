@@ -46,6 +46,15 @@ async function kirim(metode: string, path: string, body?: unknown) {
 	return { status: r.status, data: data as { error?: string } | null };
 }
 
+/** Snapshot seluruh baris dompet — untuk PATCH dompet yang tidak menyentuh transaksi/transfer. */
+async function snapshotDompet() {
+	const rows = await db
+		.select({ id: dompet.id, nama: dompet.nama, arsip: dompet.arsip })
+		.from(dompet)
+		.orderBy(dompet.id);
+	return JSON.stringify(rows);
+}
+
 async function kasus(
 	label: string,
 	ekspektasi: { status: number; error: string },
@@ -66,6 +75,31 @@ async function kasus(
 				`        harap : ${ekspektasi.status} ${ekspektasi.error}, baris tetap\n` +
 				`        dapat: ${hasil.status} ${hasil.data?.error}\n` +
 				`        baris: ${sebelum} → ${sesudah}`
+		);
+	}
+}
+
+/** Versi `kasus` untuk PATCH dompet: yang dijaga adalah isi tabel `dompet`. */
+async function kasusDompet(
+	label: string,
+	ekspektasi: { status: number; error: string },
+	jalan: () => Promise<{ status: number; data: { error?: string } | null }>
+) {
+	const sebelum = await snapshotDompet();
+	const hasil = await jalan();
+	const sesudah = await snapshotDompet();
+	const statusOk = hasil.status === ekspektasi.status;
+	const errorOk = hasil.data?.error === ekspektasi.error;
+	const tetap = sebelum === sesudah;
+	if (statusOk && errorOk && tetap) {
+		console.log(`  ok   ${label} → ${hasil.status} ${hasil.data?.error} (dompet tak berubah)`);
+	} else {
+		gagal++;
+		console.error(
+			`  GAGAL ${label}\n` +
+				`        harap : ${ekspektasi.status} ${ekspektasi.error}, dompet tetap\n` +
+				`        dapat: ${hasil.status} ${hasil.data?.error}\n` +
+				`        dompet berubah: ${!tetap}`
 		);
 	}
 }
@@ -175,6 +209,25 @@ if (tagihanAda) {
 	);
 } else {
 	console.log('  lewati (tidak ada tagihan)');
+}
+
+console.log('\nPATCH /api/dompet/[id]:');
+if (dompetKedua) {
+	// Urutan galat: nama bentrok (409) didahulukan atas galat tipe `arsip` (400).
+	await kasusDompet('nama bentrok ditolak', { status: 409, error: 'WALLET_DUPLICATE' }, () =>
+		kirim('PATCH', `/api/dompet/${dompetKedua.id}`, { nama_dompet: dompetAktif.nama })
+	);
+	await kasusDompet('arsip non-boolean ditolak', { status: 400, error: 'INVALID_WALLET' }, () =>
+		kirim('PATCH', `/api/dompet/${dompetKedua.id}`, { arsip: 'ya' })
+	);
+	// Jepitan: kedua galat serentak — harus 409 (bentrok menang), persis urutan lama.
+	await kasusDompet(
+		'bentrok + arsip salah → tetap 409',
+		{ status: 409, error: 'WALLET_DUPLICATE' },
+		() => kirim('PATCH', `/api/dompet/${dompetKedua.id}`, { nama_dompet: dompetAktif.nama, arsip: 'ya' })
+	);
+} else {
+	console.log('  lewati (hanya satu dompet)');
 }
 
 console.log(
