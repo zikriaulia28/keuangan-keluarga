@@ -4,9 +4,18 @@ import { eq } from 'drizzle-orm';
 import { db, dompet, kategori, transaksi, utang } from 'db';
 import { currentUser } from '../../../../../lib/server/auth';
 import { saldoSemuaDompet } from '../../../../../lib/server/saldo';
+import { header, mulai } from '../../../../../lib/server/waktu';
 const TGL = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 
-export const POST: RequestHandler = async ({ cookies, request, params }) => {
+// 5 hop: currentUser → baca utang → batch (dompet ∥ kategori ∥ saldo) → insert → update.
+export const POST: RequestHandler = async (args) => {
+  const t0 = mulai();
+  const res = await post(args);
+  res.headers.set('server-timing', header(t0, 5));
+  return res;
+};
+
+const post: RequestHandler = async ({ cookies, request, params }) => {
   const user = await currentUser(cookies);
   if (!user) return json({ error: 'UNAUTHENTICATED' }, { status: 401 });
   // Elysia memvalidasi body SEBELUM handler → cek struktur dulu.

@@ -64,7 +64,15 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
   );
 };
 
-export const POST: RequestHandler = async ({ request, cookies }) => {
+// 3 hop: currentUser → batch (dompet ∥ kategori ∥ saldo) → insert.
+export const POST: RequestHandler = async (args) => {
+  const t0 = mulai();
+  const res = await post(args);
+  res.headers.set('server-timing', header(t0, 3));
+  return res;
+};
+
+const post: RequestHandler = async ({ request, cookies }) => {
   const user = await currentUser(cookies);
   if (!user) return json({ error: 'UNAUTHENTICATED' }, { status: 401 });
   let body: {

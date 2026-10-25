@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db, dompet, kategori, transaksi } from 'db';
 import { currentUser } from '$lib/server/auth';
 import { saldoSemuaDompet } from '$lib/server/saldo';
+import { header, mulai } from '$lib/server/waktu';
 
 const TGL = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const efek = (tipe: string, jumlah: number) => (tipe === 'masuk' ? jumlah : -jumlah);
@@ -19,7 +20,15 @@ export const DELETE: RequestHandler = async ({ cookies, params }) => {
   await db.delete(transaksi).where(eq(transaksi.id, row.id));
   return json({ ok: true });
 };
-export const PATCH: RequestHandler = async ({ request, cookies, params }) => {
+// 4 hop: currentUser → baca baris lama → batch (dompet ∥ kategori ∥ saldo) → update.
+export const PATCH: RequestHandler = async (args) => {
+  const t0 = mulai();
+  const res = await patch(args);
+  res.headers.set('server-timing', header(t0, 4));
+  return res;
+};
+
+const patch: RequestHandler = async ({ request, cookies, params }) => {
 	const user = await currentUser(cookies);
 	if (!user) return json({ error: 'UNAUTHENTICATED' }, { status: 401 });
 	const id = Number(params.id);

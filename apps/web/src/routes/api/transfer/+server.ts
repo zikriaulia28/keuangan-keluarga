@@ -5,6 +5,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import { db, dompet, transfer, users } from 'db';
 import { currentUser } from '$lib/server/auth';
 import { saldoDompet } from '$lib/server/saldo';
+import { header, mulai } from '$lib/server/waktu';
 
 const TGL = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const asal = alias(dompet, 'asal');
@@ -36,7 +37,15 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
   );
 };
 
-export const POST: RequestHandler = async ({ request, cookies }) => {
+// 3 hop: currentUser → batch (cek dua dompet ∥ saldo asal) → insert.
+export const POST: RequestHandler = async (args) => {
+  const t0 = mulai();
+  const res = await post(args);
+  res.headers.set('server-timing', header(t0, 3));
+  return res;
+};
+
+const post: RequestHandler = async ({ request, cookies }) => {
   const user = await currentUser(cookies);
   if (!user) return json({ error: 'UNAUTHENTICATED' }, { status: 401 });
   if (user.role !== 'admin') return json({ error: 'FORBIDDEN' }, { status: 403 });
