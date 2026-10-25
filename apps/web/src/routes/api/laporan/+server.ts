@@ -138,9 +138,13 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
 
 	// Saldo awal = posisi jual hari sebelum `dari`, jadi transfer di dalam periode
 	// terhitung sebagai perpindahan dompet, bukan pemasukan.
+	// `iso()` (bukan `toISOString()`) supaya tanggal dikembalikan dalam kalender
+	// lokal: toISOString mengonversi ke UTC, dan di zona di belakang UTC
+	// (mis. WIB) `new Date('2026-10-01T00:00:00')` masih 30 Sep — bound-nya jadi
+	// meleset sehari saat pengembangan lokal. Produksi (UTC) tidak terdampak.
 	const sebelum = new Date(`${dari}T00:00:00`);
 	sebelum.setDate(sebelum.getDate() - 1);
-	const akhirSebelum = sebelum.toISOString().slice(0, 10);
+	const akhirSebelum = iso(sebelum);
 
 	const dalam = and(gte(transaksi.tanggal, dari), lte(transaksi.tanggal, sampai));
 	// Periode pembanding dihitung dari `dari`/`sampai` saja — tidak bergantung pada
